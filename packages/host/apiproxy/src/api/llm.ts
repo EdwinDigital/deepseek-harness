@@ -10,6 +10,7 @@
 
 import type { RpcRequest, RpcResponse } from './rpc.ts'
 import type { ModelCatalogFailure, ModelProviderGroup } from './sessions.ts'
+import type { LlmAuthEvent, LlmInteractiveAuthType, LlmProviderAuthStatus } from '@deepseek-ai/dsh-llm/types'
 
 /** Wire view of one configurable provider. */
 export interface ConfigurableProviderView {
@@ -29,6 +30,27 @@ export interface ConfigurableProviderView {
    * surface must treat absence as "unknown", not as "shipped".
    */
   declared?: boolean
+  /** Interactive authentication methods supported by the live route. */
+  authMethods?: LlmInteractiveAuthType[]
+}
+
+/** Browser-safe prompt currently awaiting a user response. */
+export interface LlmAuthPromptView {
+  id: string
+  type: 'text' | 'secret' | 'manual_code' | 'select'
+  message: string
+  placeholder?: string
+  options?: { id: string; label: string; description?: string }[]
+}
+
+/** Recoverable state of one provider login operation. */
+export interface LlmAuthOperationView {
+  id: string
+  provider: string
+  status: 'running' | 'succeeded' | 'failed' | 'cancelled'
+  events: LlmAuthEvent[]
+  prompt?: LlmAuthPromptView
+  error?: string
 }
 
 /** Llm-domain unary methods (the map keys llm.* of RpcMethodMap). */
@@ -74,6 +96,34 @@ export interface LlmApi {
     }>,
     signal?: AbortSignal,
   ): Promise<RpcResponse<{ models: DiscoveredModelView[] }>>
+
+  /** Read the provider credential state and its most recent login operation. */
+  authStatus(request: RpcRequest<{ provider: string }>): Promise<RpcResponse<{
+    status?: LlmProviderAuthStatus
+    operation?: LlmAuthOperationView
+  }>>
+
+  /** Start one provider-owned interactive login operation. */
+  startAuth(request: RpcRequest<{
+    provider: string
+    type: LlmInteractiveAuthType
+  }>): Promise<RpcResponse<{ operation: LlmAuthOperationView }>>
+
+  /** Read a login operation after start or page reconnection. */
+  authOperation(request: RpcRequest<{ id: string }>): Promise<RpcResponse<{ operation: LlmAuthOperationView }>>
+
+  /** Answer the prompt currently owned by a login operation. */
+  respondAuth(request: RpcRequest<{
+    id: string
+    promptId: string
+    value: string
+  }>): Promise<RpcResponse<{ operation: LlmAuthOperationView }>>
+
+  /** Cancel a running provider login operation. */
+  cancelAuth(request: RpcRequest<{ id: string }>): Promise<RpcResponse<{ operation: LlmAuthOperationView }>>
+
+  /** Remove the provider-owned OAuth credential. */
+  logout(request: RpcRequest<{ provider: string }>): Promise<RpcResponse<{}>>
 }
 
 /** Wire view of one model an interrogated endpoint advertises. */

@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import LlmRuntime, { LlmAdapter, LlmError } from '@deepseek-ai/dsh-llm'
-import type { GenerateOptions, LlmConfigurableProvider, StreamChunk } from '@deepseek-ai/dsh-llm'
+import type {
+  GenerateOptions,
+  LlmAuthInteraction,
+  LlmConfigurableProvider,
+  StreamChunk,
+} from '@deepseek-ai/dsh-llm'
 
 class NoopAdapter extends LlmAdapter {
 
@@ -25,6 +30,55 @@ function entry(overrides: Partial<LlmConfigurableProvider> = {}): LlmConfigurabl
     ...overrides,
   }
 }
+
+describe('provider authentication', () => {
+  it('delegates optional authentication through the route-owning adapter', async () => {
+    const ctx = await setup()
+    const calls: string[] = []
+    const events: string[] = []
+    const adapter = new class extends NoopAdapter {
+      override authMethods(): readonly ['oauth'] {
+        return ['oauth']
+      }
+
+      override authStatus(): Promise<{ type: 'oauth'; source: string }> {
+        return Promise.resolve({ type: 'oauth', source: 'OAuth' })
+      }
+
+      override login(provider: string, type: 'oauth', interaction: LlmAuthInteraction): Promise<void> {
+        calls.push(`${provider}:${type}`)
+        interaction.notify({ type: 'progress', message: 'signed in' })
+        return Promise.resolve()
+      }
+
+      override logout(provider: string): Promise<void> {
+        calls.push(`${provider}:logout`)
+        return Promise.resolve()
+      }
+    }()
+    ctx.llm.registerAdapter(['github-copilot'], adapter)
+
+    expect(ctx.llm.providerAuthMethods('github-copilot')).toEqual(['oauth'])
+    await expect(ctx.llm.providerAuthStatus('github-copilot')).resolves.toEqual({ type: 'oauth', source: 'OAuth' })
+    await expect(ctx.llm.providerLogin('github-copilot', 'oauth', {
+      prompt: () => Promise.resolve(''),
+      notify: event => events.push(event.type),
+    })).resolves.toBeUndefined()
+    await expect(ctx.llm.providerLogout('github-copilot')).resolves.toBeUndefined()
+    expect(calls).toEqual(['github-copilot:oauth', 'github-copilot:logout'])
+    expect(events).toEqual(['progress'])
+  })
+
+  it('rejects login through an adapter that does not advertise the method', async () => {
+    const ctx = await setup()
+    ctx.llm.registerAdapter(['plain'], new NoopAdapter())
+
+    await expect(ctx.llm.providerLogin('plain', 'oauth', {
+      prompt: () => Promise.resolve(''),
+      notify: () => {},
+    })).rejects.toMatchObject({ code: 'UNSUPPORTED_AUTH' })
+  })
+})
 
 describe('llm/adapters-updated', () => {
   it('fires at both adapter registration commit points with the registry already readable', async () => {
@@ -124,10 +178,12 @@ describe('configurable-provider directory', () => {
 
   it('detaches stored entries from caller-owned objects', async () => {
     const ctx = await setup()
-    const source = entry()
+    const source = entry({ authMethods: ['oauth'] })
     ctx.llm.registerConfigurableProviders([source])
     source.displayName = 'mutated'
+    ;(source.authMethods as string[]).push('mutated')
     expect(ctx.llm.listConfigurableProviders()[0]!.displayName).toBe('OpenAI')
+    expect(ctx.llm.listConfigurableProviders()[0]!.authMethods).toEqual(['oauth'])
   })
 
   it('withdraws every entry when the registration disposes', async () => {

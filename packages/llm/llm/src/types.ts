@@ -148,6 +148,61 @@ export interface LlmProviderInfo {
   name: string
 }
 
+/** Interactive provider authentication methods understood by the LLM service. */
+export type LlmInteractiveAuthType = 'oauth'
+
+/** Non-secret provider authentication state for configuration surfaces. */
+export interface LlmProviderAuthStatus {
+  /** Authentication method that currently owns the provider route. */
+  type: 'api_key' | 'oauth'
+  /** Human-readable source label supplied by the adapter. */
+  source?: string
+}
+
+/** One user prompt emitted by an interactive provider login. */
+export type LlmAuthPrompt = {
+  /** Cancels this prompt when another login path resolves it. */
+  signal?: AbortSignal
+} & ({
+  type: 'text' | 'secret' | 'manual_code'
+  message: string
+  placeholder?: string
+} | {
+  type: 'select'
+  message: string
+  options: readonly { id: string; label: string; description?: string }[]
+})
+
+/** Non-secret notification emitted while an interactive provider login runs. */
+export type LlmAuthEvent = {
+  type: 'info'
+  message: string
+  links?: readonly { url: string; label?: string }[]
+} | {
+  type: 'auth_url'
+  url: string
+  instructions?: string
+} | {
+  type: 'device_code'
+  userCode: string
+  verificationUri: string
+  intervalSeconds?: number
+  expiresInSeconds?: number
+} | {
+  type: 'progress'
+  message: string
+}
+
+/** Caller-owned interaction channel used by one provider login operation. */
+export interface LlmAuthInteraction {
+  /** Cancels the complete login operation. */
+  signal?: AbortSignal
+  /** Ask the user for one value; rejects when the user cancels. */
+  prompt(prompt: LlmAuthPrompt): Promise<string>
+  /** Publish one non-secret login notification. */
+  notify(event: LlmAuthEvent): void
+}
+
 /** Merge-extensible provider model modality vocabulary. */
 export interface ModelModalityMap {
   text: 'text'
@@ -184,6 +239,8 @@ export interface LlmConfigurableProvider {
    * from outside.
    */
   declared?: boolean
+  /** Interactive authentication methods the owning adapter offers for this route. */
+  authMethods?: readonly LlmInteractiveAuthType[]
 }
 
 /**

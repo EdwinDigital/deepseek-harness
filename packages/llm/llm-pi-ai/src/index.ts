@@ -61,7 +61,12 @@ import { assertUsableApiKey, LlmError } from '@deepseek-ai/dsh-llm'
 import type { AdapterRegistrationHandle, DirectoryRegistrationHandle, LlmConfigurableProvider } from '@deepseek-ai/dsh-llm'
 import { deepEqualJson, installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
 import { PiAiAdapter } from './adapter.ts'
-import { catalogProviderIds, catalogProviderTakesApiKey } from './catalog.ts'
+import {
+  catalogProviderIds,
+  catalogProviderSupportsOAuth,
+  catalogProviderTakesApiKey,
+} from './catalog.ts'
+import { HarnessCredentialStore } from './credential-store.ts'
 import { assertServiceable, Config, resolveProfiles } from './config.ts'
 import type { ResolvedPiAiProviderProfile } from './config.ts'
 import { discoverModels } from './discovery.ts'
@@ -123,6 +128,7 @@ function directoryEntries(
   const catalog = new Set(catalogProviderIds())
   const entries = new Map<string, LlmConfigurableProvider>()
   const declare = (provider: string, displayName: string): void => {
+    const supportsOAuth = catalogProviderSupportsOAuth(provider)
     entries.set(provider, {
       provider,
       displayName,
@@ -132,6 +138,7 @@ function directoryEntries(
       // narrowing a shipped provider's models stores a profile too, and that
       // route is still one pi-ai knows.
       declared: !catalog.has(provider),
+      ...supportsOAuth ? { authMethods: ['oauth'] } : {},
     })
   }
   // A provider whose only native method is OAuth leaves this adapter nothing
@@ -140,7 +147,7 @@ function directoryEntries(
   // every request. Catalog *membership* is unaffected, so `declare` above still
   // answers what pi-ai ships.
   for (const provider of catalog) {
-    if (catalogProviderTakesApiKey(provider)) declare(provider, provider)
+    if (catalogProviderTakesApiKey(provider) || catalogProviderSupportsOAuth(provider)) declare(provider, provider)
   }
   for (const [provider, profile] of profiles) declare(provider, profile.displayName)
   return [...entries.values()]
@@ -200,6 +207,10 @@ export function apply(ctx: Context, config: Config): void {
   const adapter = new PiAiAdapter({
     profiles,
     resolveApiKey,
+    credentials: new HarnessCredentialStore(
+      () => ctx.get('credentials'),
+      () => [...profiles().keys()],
+    ),
     resolveAttachments: () => ctx.get('attachments'),
   })
   // The full installed catalog is configurable from the moment the plugin

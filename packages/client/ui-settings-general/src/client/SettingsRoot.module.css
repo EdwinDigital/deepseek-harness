@@ -13,48 +13,6 @@
   width: calc(100% + 8px);
   height: 34px;
   margin: 4px -4px 4px;
-  padding: 6px 2px 6px 10px;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 12px;
-  background: transparent;
-  cursor: pointer;
-  overflow: hidden;
-  color: var(--dsw-alias-label-primary);
-  font-family: inherit;
-  font-size: 14px;
-  line-height: 22px;
-}
-
-.trigger:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
-}
-
-/* Rail trigger: the same 36x36 circle box as the other rail controls. */
-.trigger.rail {
-  width: 36px;
-  height: 36px;
-  margin: 8px 0 10px;
-  justify-content: center;
-  gap: 0;
-  padding: 0;
-  border-radius: 50%;
-}
-
-.triggerLabel {
-  overflow: hidden;
-  white-space: nowrap;
-}
-
-/* Full-viewport layer (figma Mask 501:29946 #000@24%): mask tokens match the
-   Modal primitive (--dsw-alias-bg-mask-1 + --dsw-mask-blur). */
-.overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .mask {
@@ -223,4 +181,46 @@
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+  .panel {
+    flex-direction: column;
+    border-radius: 16px;
+  }
+
+  .nav {
+    width: 100%;
+    padding: 16px 12px 8px;
+    gap: 8px;
+  }
+
+  .navTitle {
+    padding: 0 4px;
+  }
+
+  .navList {
+    flex-direction: row;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .navCell {
+    flex: none;
+    height: 36px;
+    padding: 7px 12px;
+  }
+
+  .content {
+    min-height: 0;
+  }
+
+  .header {
+    height: 48px;
+    padding: 8px 12px;
+  }
+
+  .options {
+    padding: 0 16px 16px;
+  }
 }

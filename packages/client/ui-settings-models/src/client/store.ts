@@ -7,7 +7,7 @@
  */
 
 import type {
-  ConfigurableProviderView, CredentialView, IApiClient, SettingsNamespaceView,
+  ConfigurableProviderView, CredentialView, IApiClient, ResponseValue, SettingsNamespaceView,
 } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
@@ -31,6 +31,10 @@ export interface ProviderRow {
   apiKeyEnv: string | undefined
   /** Credential state for {@link apiKeyEnv}, once described. */
   credential: CredentialView | undefined
+  /** Provider-owned authentication state, when the route supports OAuth. */
+  authStatus: ResponseValue<'llm.authStatus'>['status']
+  /** Most recent recoverable provider login operation. */
+  authOperation: ResponseValue<'llm.authStatus'>['operation']
 }
 
 /** Page snapshot. */
@@ -155,11 +159,14 @@ export class ModelsSettingsStore {
         removable,
         apiKeyEnv: apiKeyEnvOf(namespace, entry.settingsPath),
         credential: undefined,
+        authStatus: undefined,
+        authOperation: undefined,
       }
     })
     const refs = [...new Set(rows.flatMap(row => row.apiKeyEnv === undefined ? [] : [row.apiKeyEnv]))]
     let credentials: Record<string, CredentialView> = {}
     let credentialError: string | null = null
+    const auth = new Map<string, ResponseValue<'llm.authStatus'>>()
     if (refs.length > 0) {
       try {
         const response = await this.api.credentials.describe({ refs })
@@ -172,18 +179,36 @@ export class ModelsSettingsStore {
         credentialError = messageOf(error)
       }
     }
+    await Promise.all(rows
+      .filter(row => row.entry.authMethods?.includes('oauth') === true)
+      .map(async (row) => {
+        try {
+          const response = await this.api.llm.authStatus({ provider: row.entry.provider })
+          if (response.result.ok) auth.set(row.entry.provider, response.result.value)
+        } catch {
+          // Authentication is row enrichment like credentials: a transport
+          // failure must not hide provider settings that remain editable.
+        }
+      }))
     if (generation !== this.generation) return
     this.store.update((s) => {
       s.status = 'ready'
       s.error = null
       s.credentialError = credentialError
       s.writable = writable
-      s.rows = rows.map(row => ({
-        ...row,
-        ...row.apiKeyEnv !== undefined && credentials[row.apiKeyEnv] !== undefined
-          ? { credential: credentials[row.apiKeyEnv] }
-          : {},
-      }))
+      s.rows = rows.map((row) => {
+        const providerAuth = auth.get(row.entry.provider)
+        return {
+          ...row,
+          ...row.apiKeyEnv !== undefined && credentials[row.apiKeyEnv] !== undefined
+            ? { credential: credentials[row.apiKeyEnv] }
+            : {},
+          ...providerAuth === undefined ? {} : {
+            authStatus: providerAuth.status,
+            authOperation: providerAuth.operation,
+          },
+        }
+      })
       s.namespaces = namespaces
     })
   }
@@ -201,6 +226,7 @@ export class ModelsSettingsStore {
  */
 export function providerUsable(row: ProviderRow): boolean {
   if (!row.entry.active) return false
+  if (row.entry.authMethods?.includes('oauth') === true && row.authStatus === undefined) return false
   if (row.apiKeyEnv === undefined) return true
   return row.credential?.configured === true
 }

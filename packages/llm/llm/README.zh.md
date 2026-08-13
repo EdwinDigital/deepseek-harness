@@ -6,7 +6,7 @@
 
 ## 服务：`LlmRuntime`（ctx key：`llm`）
 
-一个适配器注册表加单一流式调用接口，可通过 waterfall（瀑布式事件）拦截。
+一个带提供方自有认证的适配器注册表，加上可通过 waterfall（瀑布式事件）拦截的流式调用接口。
 
 ### 公开 API
 
@@ -17,6 +17,10 @@
 - `ctx.llm.registerModelDiscovery(settingsNs: string, discover): () => void` 为本插件拥有的 settings namespace 提供查询提供方端点的能力。每个 namespace 只能有一个（`INVALID_DISCOVERY`/`DUPLICATE_DISCOVERY`），并随调用 fiber dispose。
 - `ctx.llm.listModelDiscoveryNamespaces(): string[]` 列出可以询问端点的 namespace，让界面只在可用之处提供该动作。
 - `ctx.llm.discoverModels(settingsNs: string, request: LlmModelDiscoveryRequest): Promise<LlmDiscoveredModel[]>` 询问某个端点它公布了哪些模型。
+- `ctx.llm.providerAuthMethods(provider: string): readonly LlmInteractiveAuthType[]` 列出已注册路由支持的交互登录方法。当前提供方无关词汇只包含 `oauth`。
+- `ctx.llm.providerAuthStatus(provider: string): Promise<LlmProviderAuthStatus | undefined>` 解析该路由的非机密认证拥有者与来源标签。缺失表示没有适配器自有凭据；该方法绝不返回凭据值。
+- `ctx.llm.providerLogin(provider, type, interaction): Promise<void>` 通过调用方拥有的 prompt、通知与取消机制运行适配器登录协议。不支持的方法以 `UNSUPPORTED_AUTH` 失败；持久化和 token 交换由适配器负责。
+- `ctx.llm.providerLogout(provider: string): Promise<void>` 删除一条路由的适配器自有凭据。
 - `ctx.llm.providerRetryPolicy(provider: string): ResolvedRetryPolicy` 返回注册时捕获的提供方自身的重试策略，并解析 normal 默认值。
 - `ctx.llm.listModels(provider: string): Promise<LlmModelInfo[]>` 发现某个已注册提供方当前公布的模型。
 - `ctx.llm.resolveModelInfo(provider: string, model: string, signal?: AbortSignal): Promise<LlmResolvedModelInfo>` 从拥有该精确路由的适配器中，解析并校验确切模型身份，以及可用上下文、输出默认值和推理（reasoning）元数据；异步适配器可选地支持取消。
@@ -44,7 +48,7 @@
 
 ### 扩展点
 
-- 继承 `LlmAdapter` 并调用 `ctx.llm.registerAdapter(providers, adapter)`，添加一条或多条提供方路由。`GenerateOptions.provider` 选择适配器；`GenerateOptions.model` 属于适配器，可以动态解析。覆盖 `providerRetryPolicy()` 以提供由提供方定义的恢复配置，覆盖 `providerInfo()` 和异步 `listModels()` 以公开 selector 元数据；精确身份、容量、输出默认值或可选推理强度可用时，实现 `resolveModel()`；异步解析器必须响应其可选的取消 signal。默认实现使用有界的 normal 重试策略，将路由和模型 id 用作名称，不公布模型，也不返回容量、输出默认值或推理元数据。
+- 继承 `LlmAdapter` 并调用 `ctx.llm.registerAdapter(providers, adapter)`，添加一条或多条提供方路由。`GenerateOptions.provider` 选择适配器；`GenerateOptions.model` 属于适配器，可以动态解析。适配器拥有交互凭据时，应一并覆盖 `authMethods()`／`authStatus()`／`login()`／`logout()`；登录必须响应 interaction signal，且绝不能通过 prompt 或通知公布 token。覆盖 `providerRetryPolicy()` 以提供由提供方定义的恢复配置，覆盖 `providerInfo()` 和异步 `listModels()` 以公开 selector 元数据；精确身份、容量、输出默认值或可选推理强度可用时，实现 `resolveModel()`；异步解析器必须响应其可选的取消 signal。默认实现不公布认证方法或模型，使用有界的 normal 重试策略，将路由和模型 id 用作名称，也不返回凭据状态、容量、输出默认值或推理元数据。
 - 包装 `llm/stream` 时，通过 `ctx.on()` waterfall listener 实现缓存、日志或路由。包装层如果在已经发出分片后重试，就没有可持久记录的尝试边界；因此，随产品交付的 agent 重试策略改用 `agent/request-error`。
 
 ### 消息（`message.ts`）与内容块（`types.ts`）

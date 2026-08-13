@@ -126,6 +126,12 @@ function scriptedApi(overrides: {
       providers: r => ok(r, { providers: [] }),
       models: r => ok(r, { groups: [], failures: [] }),
       discoverModels: err,
+      authStatus: r => ok(r, {}),
+      startAuth: err,
+      authOperation: err,
+      respondAuth: err,
+      cancelAuth: err,
+      logout: err,
       ...overrides.llm,
     },
     events: { mux: () => empty<MuxFrame>(), host: () => empty<HostFrame>(), ...overrides.events },
@@ -733,9 +739,20 @@ describe('config unary surface', () => {
       displayName: 'openai',
       settingsNs: 'llm-pi-ai',
       settingsPath: ['providers', 'openai'],
-      active: false,
+      active: true,
+      authMethods: ['oauth' as const],
     }
     const group = { id: 'deepseek-official', name: 'DeepSeek', models: [{ id: 'deepseek-v4-flash', name: 'Flash' }] }
+    const authOperation = {
+      id: 'auth-1',
+      provider: 'openai',
+      status: 'running' as const,
+      events: [{
+        type: 'device_code' as const,
+        userCode: 'ABCD-EFGH',
+        verificationUri: 'https://github.com/login/device',
+      }],
+    }
     const api = scriptedApi({
       settings: {
         describe: record('settings.describe', r => ok(r, { writable: true, hasDocument: false, namespaces: [view] })),
@@ -753,6 +770,12 @@ describe('config unary surface', () => {
         providers: record('llm.providers', r => ok(r, { providers: [providerRow] })),
         models: record('llm.models', r => ok(r, { groups: [group], failures: [] })),
         discoverModels: record('llm.discoverModels', r => ok(r, { models: [{ id: 'acme-large', contextWindow: 65536 }] })),
+        authStatus: record('llm.authStatus', r => ok(r, { operation: authOperation })),
+        startAuth: record('llm.startAuth', r => ok(r, { operation: authOperation })),
+        authOperation: record('llm.authOperation', r => ok(r, { operation: authOperation })),
+        respondAuth: record('llm.respondAuth', r => ok(r, { operation: authOperation })),
+        cancelAuth: record('llm.cancelAuth', r => ok(r, { operation: { ...authOperation, status: 'cancelled' as const } })),
+        logout: record('llm.logout', r => ok(r, {})),
       },
     })
     const c = client(api)
@@ -785,11 +808,23 @@ describe('config unary surface', () => {
       apiKey: 'probe-key',
     })
     expect(discovered.result).toEqual({ ok: true, value: { models: [{ id: 'acme-large', contextWindow: 65536 }] } })
+    expect((await c.llm.authStatus({ provider: 'openai' })).result)
+      .toEqual({ ok: true, value: { operation: authOperation } })
+    expect((await c.llm.startAuth({ provider: 'openai', type: 'oauth' })).result)
+      .toEqual({ ok: true, value: { operation: authOperation } })
+    expect((await c.llm.authOperation({ id: 'auth-1' })).result)
+      .toEqual({ ok: true, value: { operation: authOperation } })
+    expect((await c.llm.respondAuth({ id: 'auth-1', promptId: 'prompt-1', value: 'yes' })).result)
+      .toEqual({ ok: true, value: { operation: authOperation } })
+    expect((await c.llm.cancelAuth({ id: 'auth-1' })).result)
+      .toEqual({ ok: true, value: { operation: { ...authOperation, status: 'cancelled' } } })
+    expect((await c.llm.logout({ provider: 'openai' })).result).toEqual({ ok: true, value: {} })
 
     expect(seen.map(call => call.method)).toEqual([
       'settings.describe', 'settings.openDocument', 'settings.update', 'settings.replace', 'settings.mutate',
       'credentials.describe', 'credentials.set', 'credentials.unset',
-      'llm.providers', 'llm.models', 'llm.discoverModels',
+      'llm.providers', 'llm.models', 'llm.discoverModels', 'llm.authStatus', 'llm.startAuth',
+      'llm.authOperation', 'llm.respondAuth', 'llm.cancelAuth', 'llm.logout',
     ])
     expect(seen[2]?.payload).toEqual({ ns: 'llm-deepseek', patch: { baseURL: 'https://next' } })
     expect(seen[4]?.payload)

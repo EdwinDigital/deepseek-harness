@@ -13,10 +13,12 @@
  * way down: switching models mid-reply takes effect on the next step, never
  * inside the one in flight.
  *
- * Credentials stay outside that collection. The harness resolves a route's key
+ * API keys stay outside that collection. The harness resolves a route's key
  * through its own seam and passes it as the request's `apiKey` option, which
- * pi-ai treats as the highest-priority auth override — so `Models` never holds
- * a credential store and the harness keeps its fail-loud reference semantics.
+ * pi-ai treats as the highest-priority auth override. OAuth credentials use a
+ * shared Harness-backed store injected into every collection, so replacement
+ * snapshots observe login, refresh rotation, and logout without sharing model
+ * registries.
  *
  * @module dsh-llm-pi-ai/adapter
  */
@@ -24,6 +26,7 @@
 import { createModels, getSupportedThinkingLevels } from '@earendil-works/pi-ai'
 import type {
   Api,
+  CredentialStore,
   Model,
   Models,
   ModelThinkingLevel,
@@ -40,6 +43,8 @@ import {
 } from '@deepseek-ai/dsh-llm'
 import type {
   GenerateOptions,
+  LlmAuthInteraction,
+  LlmInteractiveAuthType,
   LlmModelInfo,
   LlmProviderInfo,
   LlmResolvedModelInfo,
@@ -74,6 +79,8 @@ export interface PiAiAdapterOptions {
    * `MISSING_CREDENTIAL` rather than falling back.
    */
   resolveApiKey: (provider: string, profile: ResolvedPiAiProviderProfile) => Promise<string | undefined>
+  /** Shared OAuth credential store; absent keeps pi-ai's in-memory default. */
+  credentials?: CredentialStore
   /** Resolve the optional durable attachment service at request time. */
   resolveAttachments?: () => AttachmentStore | undefined
 }
@@ -199,7 +206,9 @@ export class PiAiAdapter extends LlmAdapter {
   private current(): PiAiSnapshot {
     const profiles = this.config.profiles()
     if (this.snapshot?.profiles === profiles) return this.snapshot
-    const models: MutableModels = createModels()
+    const models: MutableModels = createModels({
+      ...this.config.credentials === undefined ? {} : { credentials: this.config.credentials },
+    })
     for (const profile of profiles.values()) models.setProvider(profile.piProvider)
     this.snapshot = { profiles, models }
     return this.snapshot
@@ -233,6 +242,34 @@ export class PiAiAdapter extends LlmAdapter {
 
   override providerRetryPolicy(provider: string): ResolvedRetryPolicy | undefined {
     return this.current().profiles.get(provider)?.retryPolicy
+  }
+
+  override authMethods(provider: string): readonly LlmInteractiveAuthType[] {
+    return this.current().profiles.get(provider)?.piProvider.auth.oauth === undefined ? [] : ['oauth']
+  }
+
+  override async authStatus(provider: string): Promise<{ type: 'api_key' | 'oauth'; source?: string } | undefined> {
+    this.profileOf(this.current(), provider)
+    const status = await this.current().models.checkAuth(provider)
+    return status === undefined
+      ? undefined
+      : { type: status.type, ...status.source === undefined ? {} : { source: status.source } }
+  }
+
+  override async login(
+    provider: string,
+    type: LlmInteractiveAuthType,
+    interaction: LlmAuthInteraction,
+  ): Promise<void> {
+    const snapshot = this.current()
+    this.profileOf(snapshot, provider)
+    await snapshot.models.login(provider, type, interaction)
+  }
+
+  override async logout(provider: string): Promise<void> {
+    const snapshot = this.current()
+    this.profileOf(snapshot, provider)
+    await snapshot.models.logout(provider)
   }
 
   override listModels(provider: string): Promise<readonly LlmModelInfo[]> {

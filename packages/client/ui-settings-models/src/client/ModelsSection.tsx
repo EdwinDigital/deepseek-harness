@@ -21,6 +21,7 @@ import { CustomProviderCard } from './CustomProviderCard.tsx'
 import { deriveKeyRef, messageOf, protocolChoices, providerUsable } from './store.ts'
 import type { ModelsSettingsState, ModelsSettingsStore, ProviderRow } from './store.ts'
 import { ProviderEditor, type ProviderEditorProps } from './ProviderEditor.tsx'
+import { ProviderAuthControl } from './ProviderAuthControl.tsx'
 import type { en } from './locales.ts'
 import styles from './ModelsSection.module.css'
 
@@ -377,6 +378,18 @@ function Loaded({ injected }: { injected: ModelsSectionInjected }): ReactNode {
                     : null}
                 </span>
               </div>
+              {row.entry.authMethods?.includes('oauth') === true
+                ? (
+                  <ProviderAuthControl
+                    provider={row.entry.provider}
+                    initialStatus={row.authStatus}
+                    initialOperation={row.authOperation}
+                    api={api}
+                    t={t}
+                    onChanged={() => { void controller.load() }}
+                  />
+                )
+                : null}
               {open
                 ? renderProviderEditor({
                   target,

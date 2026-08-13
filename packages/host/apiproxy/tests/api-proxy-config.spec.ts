@@ -14,7 +14,10 @@ import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import UserQuestionService from '@deepseek-ai/dsh-user-questions'
 import LlmRuntime, { LlmAdapter } from '@deepseek-ai/dsh-llm'
-import type { GenerateOptions, LlmModelInfo, LlmProviderInfo, StreamChunk } from '@deepseek-ai/dsh-llm'
+import type {
+  GenerateOptions, LlmAuthInteraction, LlmInteractiveAuthType, LlmModelInfo,
+  LlmProviderAuthStatus, LlmProviderInfo, StreamChunk,
+} from '@deepseek-ai/dsh-llm'
 import { SettingsProvider, settingsNamespace } from '@deepseek-ai/dsh-settings'
 import type { SettingsNamespace } from '@deepseek-ai/dsh-settings'
 import { CredentialProvider } from '@deepseek-ai/dsh-credentials'
@@ -152,6 +155,47 @@ class CatalogAdapter extends LlmAdapter {
 class BrokenCatalogAdapter extends CatalogAdapter {
   override listModels(): Promise<readonly LlmModelInfo[]> {
     return Promise.reject(new Error('catalog backend down'))
+  }
+}
+
+class OAuthAdapter extends CatalogAdapter {
+  authenticated = false
+  logoutCalls = 0
+  private finishLogin: (() => void) | undefined
+
+  override authMethods(): readonly LlmInteractiveAuthType[] {
+    return ['oauth']
+  }
+
+  override authStatus(): Promise<LlmProviderAuthStatus | undefined> {
+    return Promise.resolve(this.authenticated ? { type: 'oauth', source: 'Harness credential store' } : undefined)
+  }
+
+  override login(_provider: string, _type: LlmInteractiveAuthType, interaction: LlmAuthInteraction): Promise<void> {
+    interaction.notify({
+      type: 'device_code',
+      userCode: 'ABCD-EFGH',
+      verificationUri: 'https://github.com/login/device',
+      intervalSeconds: 5,
+      expiresInSeconds: 900,
+    })
+    return new Promise<void>((resolve, reject) => {
+      this.finishLogin = () => {
+        this.authenticated = true
+        resolve()
+      }
+      interaction.signal?.addEventListener('abort', () => { reject(new Error('cancelled by caller')) }, { once: true })
+    })
+  }
+
+  completeLogin(): void {
+    this.finishLogin?.()
+  }
+
+  override logout(): Promise<void> {
+    this.authenticated = false
+    this.logoutCalls += 1
+    return Promise.resolve()
   }
 }
 
@@ -670,6 +714,62 @@ describe('llm domain', () => {
       { type: 'host/remote-event', event: 'llm/adapters-updated', args: [] },
       { type: 'host/remote-event', event: 'llm/adapters-updated', args: [] },
     ])
+  })
+
+  it('runs a recoverable device login without exposing provider credentials', async () => {
+    const ctx = await harness({ configurableProviders: false })
+    const adapter = new OAuthAdapter('GitHub Copilot', [])
+    ctx.llm.registerConfigurableProviders([{
+      provider: 'github-copilot',
+      displayName: 'GitHub Copilot',
+      settingsNs: 'llm-pi-ai',
+      settingsPath: ['providers', 'github-copilot'],
+      authMethods: ['oauth'],
+    }])
+    ctx.llm.registerAdapter(['github-copilot'], adapter)
+    const api = createApiProxy(ctx, DEFAULTS)
+
+    const providers = expectOk(await api.llm.providers(request({})))
+    expect(providers.providers[0]?.authMethods).toEqual(['oauth'])
+    const started = expectOk(await api.llm.startAuth(request({ provider: 'github-copilot', type: 'oauth' })))
+    expect(started.operation).toMatchObject({
+      provider: 'github-copilot',
+      status: 'running',
+      events: [{
+        type: 'device_code',
+        userCode: 'ABCD-EFGH',
+        verificationUri: 'https://github.com/login/device',
+      }],
+    })
+    expect(JSON.stringify(started)).not.toMatch(/access.token|refresh.token/i)
+
+    const recovered = expectOk(await api.llm.authStatus(request({ provider: 'github-copilot' })))
+    expect(recovered.status).toBeUndefined()
+    expect(recovered.operation?.id).toBe(started.operation.id)
+    adapter.completeLogin()
+    await vi.waitFor(async () => {
+      const value = expectOk(await api.llm.authOperation(request({ id: started.operation.id })))
+      expect(value.operation.status).toBe('succeeded')
+    })
+    expect(expectOk(await api.llm.authStatus(request({ provider: 'github-copilot' }))).status)
+      .toEqual({ type: 'oauth', source: 'Harness credential store' })
+
+    expectOk(await api.llm.logout(request({ provider: 'github-copilot' })))
+    expect(adapter.logoutCalls).toBe(1)
+    expect(expectOk(await api.llm.authStatus(request({ provider: 'github-copilot' }))).status).toBeUndefined()
+  })
+
+  it('cancels a running provider login idempotently', async () => {
+    const ctx = await harness()
+    const adapter = new OAuthAdapter('GitHub Copilot', [])
+    ctx.llm.registerAdapter(['github-copilot'], adapter)
+    const api = createApiProxy(ctx, DEFAULTS)
+    const started = expectOk(await api.llm.startAuth(request({ provider: 'github-copilot', type: 'oauth' })))
+
+    const cancelled = expectOk(await api.llm.cancelAuth(request({ id: started.operation.id })))
+    expect(cancelled.operation.status).toBe('cancelled')
+    const repeated = expectOk(await api.llm.cancelAuth(request({ id: started.operation.id })))
+    expect(repeated.operation.status).toBe('cancelled')
   })
 })
 

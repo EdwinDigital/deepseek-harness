@@ -385,8 +385,12 @@ interface LlmConfigurableProvider {
    * from outside.
    */
   declared?: boolean
+  /** Interactive authentication methods the owning adapter offers for this route. */
+  authMethods?: readonly LlmInteractiveAuthType[]
 }
 ```
+
+The [`github-copilot` provider reference](github-copilot-provider.md) traces this provider-neutral authentication API through pi-ai credential persistence, Host operations, and Models settings.
 
 ```ts type-equiv
 /** One adapter-discovered model; catalog membership is advisory, not request validation. */
@@ -671,6 +675,36 @@ declare abstract class LlmAdapter {
    */
   providerRetryPolicy(_provider: string): ResolvedRetryPolicy | undefined;
   /**
+   * Interactive authentication methods available for one owned route.
+   * @param _provider - a route passed to `registerAdapter()` for this instance.
+   * @returns supported methods; empty when this adapter has no login flow.
+   */
+  authMethods(_provider: string): readonly LlmInteractiveAuthType[];
+  /**
+   * Report the current non-secret authentication state for one owned route.
+   * @param _provider - a route passed to `registerAdapter()` for this instance.
+   * @returns configured method and source, or `undefined` when unconfigured.
+   */
+  authStatus(_provider: string): Promise<LlmProviderAuthStatus | undefined>;
+  /**
+   * Run one provider-owned interactive login and durably store its credential.
+   * @param provider - a route passed to `registerAdapter()` for this instance.
+   * @param type - one method returned by {@link authMethods}.
+   * @param _interaction - caller-owned prompts, notifications, and cancellation.
+   * @throws `LlmError` `UNSUPPORTED_AUTH` unless the adapter overrides this method.
+   */
+  login(
+    provider: string,
+    type: LlmInteractiveAuthType,
+    _interaction: LlmAuthInteraction,
+  ): Promise<void>;
+  /**
+   * Remove a provider credential previously stored by this adapter.
+   * @param provider - a route passed to `registerAdapter()` for this instance.
+   * @throws `LlmError` `UNSUPPORTED_AUTH` unless the adapter overrides this method.
+   */
+  logout(provider: string): Promise<void>;
+  /**
    * List models this adapter can currently advertise for one owned provider.
    * The result is advisory: an adapter may accept unlisted model ids, and
    * consumers must not turn absence into request rejection.
@@ -749,6 +783,34 @@ registerConfigurableProviders(entries: readonly LlmConfigurableProvider[]): Dire
  * @returns detached directory entries in declaration order.
  */
 listConfigurableProviders(): LlmConfigurableProvider[]
+
+/**
+ * Return the interactive authentication methods for one registered route.
+ * @param provider - registered provider route key.
+ * @returns a detached list of supported methods.
+ */
+providerAuthMethods(provider: string): readonly LlmInteractiveAuthType[]
+
+/**
+ * Resolve one registered route's non-secret authentication state.
+ * @param provider - registered provider route key.
+ * @returns the current state, or undefined when no provider credential owns the route.
+ */
+providerAuthStatus(provider: string): Promise<LlmProviderAuthStatus | undefined>
+
+/**
+ * Run one registered route's provider-owned interactive login.
+ * @param provider - registered provider route key.
+ * @param type - authentication method selected by the caller.
+ * @param interaction - caller-owned prompts, notifications, and cancellation.
+ */
+providerLogin( provider: string, type: LlmInteractiveAuthType, interaction: LlmAuthInteraction, ): Promise<void>
+
+/**
+ * Remove one registered route's adapter-owned credential.
+ * @param provider - registered provider route key.
+ */
+providerLogout(provider: string): Promise<void>
 
 /**
  * Offer to interrogate provider endpoints on behalf of the settings
@@ -835,7 +897,7 @@ async prepareCall(config: LlmCallConfig, signal?: AbortSignal): Promise<Prepared
 stream(options: GenerateOptions): AsyncIterable<StreamChunk>
 ```
 
-Source: [`packages/llm/llm/src/index.ts:284`](../../packages/llm/llm/src/index.ts)
+Source: [`packages/llm/llm/src/index.ts:335`](../../packages/llm/llm/src/index.ts)
 
 <a id="llm-events"></a>
 
@@ -884,5 +946,5 @@ Waterfall around every streaming model call (retry, replay, routing). Bound to t
 'llm/stream'(this: LlmRuntime, options: GenerateOptions, next: () => AsyncIterable<StreamChunk>): AsyncIterable<StreamChunk>
 ```
 
-Source: [`packages/llm/llm/src/index.ts:64`](../../packages/llm/llm/src/index.ts)
+Source: [`packages/llm/llm/src/index.ts:67`](../../packages/llm/llm/src/index.ts)
 <!-- END GENERATED cordis-surface -->

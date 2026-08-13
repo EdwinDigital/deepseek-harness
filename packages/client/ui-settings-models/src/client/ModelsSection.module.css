@@ -201,6 +201,89 @@
   line-height: 18px;
 }
 
+.authControl {
+  border-top: 1px solid var(--dsw-alias-border-l2);
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.authSummary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.authConnected,
+.authDisconnected,
+.authInstruction,
+.authProgress {
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.authConnected {
+  color: var(--dsw-alias-state-success-primary);
+}
+
+.authDisconnected,
+.authProgress {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.authFlow {
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-module-platform);
+  padding: 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.authInstruction,
+.authProgress,
+.authPrompt {
+  grid-column: 1 / -1;
+}
+
+.authInstruction {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.deviceCode {
+  min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 18px;
+  line-height: 28px;
+  letter-spacing: 0;
+  color: var(--dsw-alias-label-primary);
+  user-select: all;
+}
+
+.authLink {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
+  text-decoration: none;
+}
+
+.authLink:hover {
+  text-decoration: underline;
+}
+
+.authPrompt {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.authPrompt .fieldLabel {
+  grid-column: 1 / -1;
+}
+
 .primaryButton:disabled,
 .secondaryButton:disabled,
 .dangerButton:disabled,

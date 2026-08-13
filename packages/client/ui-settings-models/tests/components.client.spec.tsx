@@ -159,6 +159,20 @@ function scriptedFace(overrides: {
         ],
       }))),
       models: vi.fn(() => Promise.resolve(ok({ groups: [], failures: [] }))),
+      authStatus: vi.fn(() => Promise.resolve(ok({}))),
+      startAuth: vi.fn(() => Promise.resolve(ok({ operation: {
+        id: 'auth-1', provider: 'openai', status: 'running', events: [],
+      } }))),
+      authOperation: vi.fn(() => Promise.resolve(ok({ operation: {
+        id: 'auth-1', provider: 'openai', status: 'running', events: [],
+      } }))),
+      respondAuth: vi.fn(() => Promise.resolve(ok({ operation: {
+        id: 'auth-1', provider: 'openai', status: 'running', events: [],
+      } }))),
+      cancelAuth: vi.fn(() => Promise.resolve(ok({ operation: {
+        id: 'auth-1', provider: 'openai', status: 'cancelled', events: [],
+      } }))),
+      logout: vi.fn(() => Promise.resolve(ok({}))),
     },
     settings: {
       describe: vi.fn(() => Promise.resolve(ok({ writable: true, hasDocument: false, namespaces: wireNamespaces() }))),
@@ -260,6 +274,73 @@ describe('ModelsSection', () => {
     expect(screen.getByLabelText(en.keyInput)).toBeTruthy()
   })
 
+  it('recovers a running GitHub device login and cancels it from the provider row', async () => {
+    const scripted = scriptedFace()
+    scripted.face.llm.providers.mockResolvedValue(ok({ providers: [{
+      provider: 'openai',
+      displayName: 'GitHub Copilot',
+      settingsNs: 'llm-pi-ai',
+      settingsPath: ['providers', 'openai'],
+      active: true,
+      authMethods: ['oauth'],
+    }] }))
+    scripted.face.llm.authStatus.mockResolvedValue(ok({ operation: {
+      id: 'auth-1',
+      provider: 'openai',
+      status: 'running',
+      events: [{
+        type: 'device_code',
+        userCode: 'ABCD-EFGH',
+        verificationUri: 'https://github.com/login/device',
+      }],
+    } }))
+    await mountFace(scripted)
+
+    expect(screen.getByText('ABCD-EFGH')).toBeTruthy()
+    expect(screen.getByRole('link', { name: en.oauthOpenGitHub }).getAttribute('href'))
+      .toBe('https://github.com/login/device')
+    fireEvent.click(screen.getByRole('button', { name: en.oauthCancel }))
+    await waitFor(() => {
+      expect(scripted.face.llm.cancelAuth).toHaveBeenCalledWith({ id: 'auth-1' })
+      expect(screen.getByText(en.oauthCancelled)).toBeTruthy()
+    })
+  })
+
+  it('submits an empty optional text prompt for the github.com device flow', async () => {
+    const scripted = scriptedFace()
+    scripted.face.llm.providers.mockResolvedValue(ok({ providers: [{
+      provider: 'github-copilot',
+      displayName: 'GitHub Copilot',
+      settingsNs: 'llm-pi-ai',
+      settingsPath: ['providers', 'openai'],
+      active: true,
+      authMethods: ['oauth'],
+    }] }))
+    scripted.face.llm.authStatus.mockResolvedValue(ok({ operation: {
+      id: 'auth-optional-domain',
+      provider: 'github-copilot',
+      status: 'running',
+      events: [],
+      prompt: {
+        id: 'domain-prompt',
+        type: 'text',
+        message: 'GitHub Enterprise URL/domain (blank for github.com)',
+      },
+    } }))
+    await mountFace(scripted)
+
+    const submit = screen.getByRole<HTMLButtonElement>('button', { name: en.oauthSubmit })
+    expect(submit.disabled).toBe(false)
+    fireEvent.click(submit)
+    await waitFor(() => {
+      expect(scripted.face.llm.respondAuth).toHaveBeenCalledWith({
+        id: 'auth-optional-domain',
+        promptId: 'domain-prompt',
+        value: '',
+      })
+    })
+  })
+
   it('marks only a confirmed missing reference and leaves native or unavailable state unmarked', async () => {
     const { face } = scriptedFace()
     face.credentials.describe.mockImplementation((payload: { refs: string[] }) => Promise.resolve(ok({
@@ -309,6 +390,8 @@ describe('ModelsSection', () => {
       removable: false,
       apiKeyEnv: 'X',
       credential,
+      authStatus: undefined,
+      authOperation: undefined,
     })
     expect(needsSetup(row(undefined), false)).toBe(true)
     expect(needsSetup(row({ configured: true, writable: true }), false)).toBe(false)

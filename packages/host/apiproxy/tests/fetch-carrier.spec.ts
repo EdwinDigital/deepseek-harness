@@ -281,6 +281,24 @@ function fakeApi(overrides: Partial<{ muxFrames: MuxFrame[]; hostFrames: HostFra
       async discoverModels(request) {
         return { rpcId: request.rpcId, result: { ok: true, value: { models: [] } } }
       },
+      async authStatus(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: {} } }
+      },
+      async startAuth(request) {
+        return { rpcId: request.rpcId, result: { ok: false, error: { code: 'internal', message: 'stub', details: {} } } }
+      },
+      async authOperation(request) {
+        return { rpcId: request.rpcId, result: { ok: false, error: { code: 'internal', message: 'stub', details: {} } } }
+      },
+      async respondAuth(request) {
+        return { rpcId: request.rpcId, result: { ok: false, error: { code: 'internal', message: 'stub', details: {} } } }
+      },
+      async cancelAuth(request) {
+        return { rpcId: request.rpcId, result: { ok: false, error: { code: 'internal', message: 'stub', details: {} } } }
+      },
+      async logout(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: {} } }
+      },
     },
     events: {
       mux: (_request, signal) => stream(muxFrames, signal),

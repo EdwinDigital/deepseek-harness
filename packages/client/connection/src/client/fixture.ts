@@ -1532,6 +1532,12 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
     // DeepSeek route so unrelated GUI journeys do not enter first-run setup.
     ['DEEPSEEK_API_KEY', true],
   ])
+  let githubAuthOperation: {
+    id: string
+    provider: string
+    status: 'running' | 'cancelled'
+    events: { type: 'device_code'; userCode: string; verificationUri: string; intervalSeconds: number; expiresInSeconds: number }[]
+  } | undefined
   /**
    * Preset compositions the fixture serves. Held as state rather than
    * constants so the settings editor's save and delete are exercisable: the
@@ -2899,14 +2905,24 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
       describe: request => ok(request, {
         writable: true,
         hasDocument: true,
-        namespaces: [{
-          ns: 'llm-deepseek',
-          schema: {},
-          value: { apiKeyEnv: 'DEEPSEEK_API_KEY' },
-          applies: 'live',
-          secrets: [{ path: ['apiKey'], set: false }],
-          revision: 0,
-        }],
+        namespaces: [
+          {
+            ns: 'llm-deepseek',
+            schema: {},
+            value: { apiKeyEnv: 'DEEPSEEK_API_KEY' },
+            applies: 'live',
+            secrets: [{ path: ['apiKey'], set: false }],
+            revision: 0,
+          },
+          {
+            ns: 'llm-pi-ai',
+            schema: {},
+            value: { providers: { 'github-copilot': {} } },
+            applies: 'live',
+            secrets: [],
+            revision: 0,
+          },
+        ],
       }),
       // Native opens are deterministic no-op successes in this fixture, as is host.openPath.
       openDocument: request => ok(request, { opened: true as const }),
@@ -2948,6 +2964,7 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
         providers: [
           { provider: 'deepseek-official', displayName: 'DeepSeek', settingsNs: 'llm-deepseek', settingsPath: [], active: true },
           { provider: 'openai', displayName: 'openai', settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'openai'], active: true, declared: false },
+          { provider: 'github-copilot', displayName: 'GitHub Copilot', settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'github-copilot'], active: true, declared: false, authMethods: ['oauth'] },
           { provider: 'anthropic', displayName: 'anthropic', settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'anthropic'], active: false, declared: false },
           // One hand-declared route, so a surface reading this fixture meets
           // the tagged shape rather than only the shipped one.
@@ -2961,6 +2978,41 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
       discoverModels: request => ok(request, {
         models: fixtureModelGroups().flatMap(group => group.models.map(model => ({ id: model.id, name: model.name }))),
       }),
+      authStatus: request => ok(request, {
+        ...githubAuthOperation === undefined ? {} : { operation: githubAuthOperation },
+      }),
+      startAuth: (request) => {
+        githubAuthOperation = {
+          id: 'fixture-github-device-auth',
+          provider: request.payload.provider,
+          status: 'running',
+          events: [{
+            type: 'device_code',
+            userCode: 'ABCD-EFGH',
+            verificationUri: 'https://github.com/login/device',
+            intervalSeconds: 5,
+            expiresInSeconds: 900,
+          }],
+        }
+        return ok(request, { operation: githubAuthOperation })
+      },
+      authOperation: request => githubAuthOperation?.id === request.payload.id
+        ? ok(request, { operation: githubAuthOperation })
+        : err(request, { code: 'internal', message: 'fixture: auth operation not found', details: {} }),
+      respondAuth: request => githubAuthOperation?.id === request.payload.id
+        ? ok(request, { operation: githubAuthOperation })
+        : err(request, { code: 'internal', message: 'fixture: auth operation not found', details: {} }),
+      cancelAuth: (request) => {
+        if (githubAuthOperation?.id !== request.payload.id) {
+          return err(request, { code: 'internal', message: 'fixture: auth operation not found', details: {} })
+        }
+        githubAuthOperation = { ...githubAuthOperation, status: 'cancelled' }
+        return ok(request, { operation: githubAuthOperation })
+      },
+      logout: (request) => {
+        githubAuthOperation = undefined
+        return ok(request, {})
+      },
     },
     respond(message: ClientResponse): Promise<RpcReceipt> {
       // Same routing discipline as the host: rpcId first, then the payload's
@@ -3129,6 +3181,12 @@ export class FixtureApiClient extends AbstractApiClient {
       case 'llm.providers': return this.api.llm.providers(request)
       case 'llm.models': return this.api.llm.models(request)
       case 'llm.discoverModels': return this.api.llm.discoverModels(request, signal)
+      case 'llm.authStatus': return this.api.llm.authStatus(request)
+      case 'llm.startAuth': return this.api.llm.startAuth(request)
+      case 'llm.authOperation': return this.api.llm.authOperation(request)
+      case 'llm.respondAuth': return this.api.llm.respondAuth(request)
+      case 'llm.cancelAuth': return this.api.llm.cancelAuth(request)
+      case 'llm.logout': return this.api.llm.logout(request)
     }
   }
 

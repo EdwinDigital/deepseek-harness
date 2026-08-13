@@ -60,7 +60,11 @@ import {
 import {
   credentialsDescribeValueSchema, credentialsSetValueSchema, credentialsUnsetValueSchema,
 } from '../api/credentials.schema.ts'
-import { llmDiscoverModelsValueSchema, llmModelsValueSchema, llmProvidersValueSchema } from '../api/llm.schema.ts'
+import {
+  llmAuthOperationValueSchema, llmAuthStatusValueSchema, llmCancelAuthValueSchema,
+  llmDiscoverModelsValueSchema, llmLogoutValueSchema, llmModelsValueSchema,
+  llmProvidersValueSchema, llmRespondAuthValueSchema, llmStartAuthValueSchema,
+} from '../api/llm.schema.ts'
 import {
   subagentHistoryValueSchema,
   subagentInterruptValueSchema,
@@ -160,6 +164,12 @@ export interface IApiClient {
     providers(payload: RequestPayload<'llm.providers'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'llm.providers'>>>
     models(payload: RequestPayload<'llm.models'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'llm.models'>>>
     discoverModels(payload: RequestPayload<'llm.discoverModels'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'llm.discoverModels'>>>
+    authStatus(payload: RequestPayload<'llm.authStatus'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'llm.authStatus'>>>
+    startAuth(payload: RequestPayload<'llm.startAuth'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'llm.startAuth'>>>
+    authOperation(payload: RequestPayload<'llm.authOperation'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'llm.authOperation'>>>
+    respondAuth(payload: RequestPayload<'llm.respondAuth'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'llm.respondAuth'>>>
+    cancelAuth(payload: RequestPayload<'llm.cancelAuth'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'llm.cancelAuth'>>>
+    logout(payload: RequestPayload<'llm.logout'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'llm.logout'>>>
   }
   /** client-response passthrough (rpcId is a backfill of the server-request's id — never minted here). */
   respond(message: ClientResponse, signal?: AbortSignal): Promise<RpcReceipt>
@@ -222,6 +232,12 @@ const UNARY_VALUE_SCHEMAS: { [K in keyof RpcMethodMap]: z.ZodType<Wire<ResponseV
   'llm.providers': llmProvidersValueSchema,
   'llm.models': llmModelsValueSchema,
   'llm.discoverModels': llmDiscoverModelsValueSchema,
+  'llm.authStatus': llmAuthStatusValueSchema,
+  'llm.startAuth': llmStartAuthValueSchema,
+  'llm.authOperation': llmAuthOperationValueSchema,
+  'llm.respondAuth': llmRespondAuthValueSchema,
+  'llm.cancelAuth': llmCancelAuthValueSchema,
+  'llm.logout': llmLogoutValueSchema,
 }
 
 /** Default timeout for bounded unary calls (rpc-compare 2026-07-19: a hung host must not leave callers pending forever). */
@@ -498,6 +514,12 @@ export abstract class AbstractApiClient implements IApiClient {
     providers: (payload, signal) => this.callUnary('llm.providers', payload, signal),
     models: (payload, signal) => this.callUnary('llm.models', payload, signal),
     discoverModels: (payload, signal) => this.callUnary('llm.discoverModels', payload, signal),
+    authStatus: (payload, signal) => this.callUnary('llm.authStatus', payload, signal),
+    startAuth: (payload, signal) => this.callUnary('llm.startAuth', payload, signal),
+    authOperation: (payload, signal) => this.callUnary('llm.authOperation', payload, signal),
+    respondAuth: (payload, signal) => this.callUnary('llm.respondAuth', payload, signal),
+    cancelAuth: (payload, signal) => this.callUnary('llm.cancelAuth', payload, signal),
+    logout: (payload, signal) => this.callUnary('llm.logout', payload, signal),
   }
 
   readonly events: IApiClient['events'] = {

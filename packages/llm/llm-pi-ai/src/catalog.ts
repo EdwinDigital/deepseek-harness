@@ -162,6 +162,15 @@ export function catalogProviderTakesApiKey(provider: string): boolean {
 }
 
 /**
+ * Whether the installed catalog provider offers an OAuth login flow.
+ * @param provider - provider route key.
+ * @returns whether pi-ai owns OAuth login and refresh for this route.
+ */
+export function catalogProviderSupportsOAuth(provider: string): boolean {
+  return catalogProvider(provider)?.auth.oauth !== undefined
+}
+
+/**
  * The installed catalog models for one route, indexed by model id.
  * @param provider - provider route key.
  * @returns catalog models by id; empty for a route pi-ai does not ship.

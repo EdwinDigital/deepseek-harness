@@ -6,7 +6,7 @@ Provider-neutral LLM vocabulary and abstract service. This package defines the c
 
 ## Service: `LlmRuntime` (ctx key: `llm`)
 
-An adapter registry plus a single streaming call API, interceptable via a waterfall event.
+An adapter registry with provider-owned authentication and a streaming call API interceptable via a waterfall event.
 
 ### Public API
 
@@ -17,6 +17,10 @@ An adapter registry plus a single streaming call API, interceptable via a waterf
 - `ctx.llm.registerModelDiscovery(settingsNs: string, discover): () => void` Offer to interrogate provider endpoints for the settings namespace this plugin owns. One offer per namespace (`INVALID_DISCOVERY`/`DUPLICATE_DISCOVERY`), disposed with the calling fiber.
 - `ctx.llm.listModelDiscoveryNamespaces(): string[]` List the namespaces that can interrogate an endpoint, so a surface offers the action only where it works.
 - `ctx.llm.discoverModels(settingsNs: string, request: LlmModelDiscoveryRequest): Promise<LlmDiscoveredModel[]>` Ask one endpoint which models it advertises.
+- `ctx.llm.providerAuthMethods(provider: string): readonly LlmInteractiveAuthType[]` List the interactive login methods supported by a registered route. The current provider-neutral vocabulary contains `oauth`.
+- `ctx.llm.providerAuthStatus(provider: string): Promise<LlmProviderAuthStatus | undefined>` Resolve the route's non-secret authentication owner and source label. Absence means no adapter-owned credential; it never returns credential values.
+- `ctx.llm.providerLogin(provider, type, interaction): Promise<void>` Run the adapter's login protocol through caller-owned prompts, notifications, and cancellation. Unsupported methods fail with `UNSUPPORTED_AUTH`; the adapter owns persistence and token exchange.
+- `ctx.llm.providerLogout(provider: string): Promise<void>` Remove the adapter-owned credential for one route.
 - `ctx.llm.providerRetryPolicy(provider: string): ResolvedRetryPolicy` Return the provider-owned retry policy captured during registration, with normal defaults resolved.
 - `ctx.llm.listModels(provider: string): Promise<LlmModelInfo[]>` Discover the models one registered provider currently advertises.
 - `ctx.llm.resolveModelInfo(provider: string, model: string, signal?: AbortSignal): Promise<LlmResolvedModelInfo>` Resolve validated exact-model identity plus available context, output-default, and reasoning metadata from the owning adapter, with optional cancellation for asynchronous adapters.
@@ -44,7 +48,7 @@ Exact-model metadata is a separate correctness query, not a catalog decoration o
 
 ### Extension points
 
-- Subclass `LlmAdapter` and call `ctx.llm.registerAdapter(providers, adapter)` to add one or more provider routes. `GenerateOptions.provider` selects the adapter; `GenerateOptions.model` is adapter-owned and may be resolved dynamically. Override `providerRetryPolicy()` to supply provider-owned recovery configuration, `providerInfo()` and asynchronous `listModels()` to expose selector metadata, then implement `resolveModel()` when exact identity, capacity, an output default, or selectable reasoning efforts are available; an asynchronous resolver must honor its optional cancellation signal. The defaults use bounded normal retry policy, use the route and model ids as names, advertise no models, and return no capacity, output default, or reasoning metadata.
+- Subclass `LlmAdapter` and call `ctx.llm.registerAdapter(providers, adapter)` to add one or more provider routes. `GenerateOptions.provider` selects the adapter; `GenerateOptions.model` is adapter-owned and may be resolved dynamically. Override `authMethods()`/`authStatus()`/`login()`/`logout()` together when the adapter owns interactive credentials; login must honor the interaction signal and must never publish tokens through prompts or notifications. Override `providerRetryPolicy()` to supply provider-owned recovery configuration, `providerInfo()` and asynchronous `listModels()` to expose selector metadata, then implement `resolveModel()` when exact identity, capacity, an output default, or selectable reasoning efforts are available; an asynchronous resolver must honor its optional cancellation signal. The defaults advertise no authentication methods or models, use bounded normal retry policy and route/model ids as names, and return no credential state, capacity, output default, or reasoning metadata.
 - Wrap `llm/stream` via `ctx.on()` waterfall listeners for caching, logging, or routing. A wrapper that retries after emitting a chunk has no durable attempt boundary; shipped agent retry policy therefore uses `agent/request-error` instead.
 
 ### Messages (`message.ts`) and content blocks (`types.ts`)

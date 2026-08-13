@@ -275,6 +275,12 @@ export class FakeApiClient implements IApiClient {
     providers: payload => this.record('llm.providers', payload, Promise.resolve(ok({ providers: [] }))),
     models: payload => this.record('llm.models', payload, Promise.resolve(ok({ groups: [], failures: [] }))),
     discoverModels: payload => this.record('llm.discoverModels', payload, Promise.resolve(ok({ models: [] }))),
+    authStatus: payload => this.record('llm.authStatus', payload, Promise.resolve(ok({}))),
+    startAuth: payload => this.record('llm.startAuth', payload, Promise.resolve(ok({ operation: { id: 'fake-auth', provider: payload.provider, status: 'succeeded' as const, events: [] } }))),
+    authOperation: payload => this.record('llm.authOperation', payload, Promise.resolve(ok({ operation: { id: payload.id, provider: 'fake', status: 'succeeded' as const, events: [] } }))),
+    respondAuth: payload => this.record('llm.respondAuth', payload, Promise.resolve(ok({ operation: { id: payload.id, provider: 'fake', status: 'succeeded' as const, events: [] } }))),
+    cancelAuth: payload => this.record('llm.cancelAuth', payload, Promise.resolve(ok({ operation: { id: payload.id, provider: 'fake', status: 'cancelled' as const, events: [] } }))),
+    logout: payload => this.record('llm.logout', payload, Promise.resolve(ok({}))),
   }
 
   /** When true, streams never fire onOpen (misbehaving-carrier material for the handshake timeout guard). */

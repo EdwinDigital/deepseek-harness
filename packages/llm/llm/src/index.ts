@@ -9,12 +9,15 @@
 import { Context, Service } from '@deepseek-ai/cordis'
 import type {
   GenerateOptions,
+  LlmAuthInteraction,
   LlmConfigurableProvider,
   LlmDiscoveredModel,
   LlmFailure,
   LlmModelContext,
   LlmModelDiscoveryRequest,
   LlmModelInfo,
+  LlmInteractiveAuthType,
+  LlmProviderAuthStatus,
   LlmResolvedModelInfo,
   LlmProviderInfo,
   ModelModality,
@@ -194,6 +197,54 @@ export abstract class LlmAdapter {
    */
   providerRetryPolicy(_provider: string): ResolvedRetryPolicy | undefined {
     return undefined
+  }
+
+  /**
+   * Interactive authentication methods available for one owned route.
+   * @param _provider - a route passed to `registerAdapter()` for this instance.
+   * @returns supported methods; empty when this adapter has no login flow.
+   */
+  authMethods(_provider: string): readonly LlmInteractiveAuthType[] {
+    return []
+  }
+
+  /**
+   * Report the current non-secret authentication state for one owned route.
+   * @param _provider - a route passed to `registerAdapter()` for this instance.
+   * @returns configured method and source, or `undefined` when unconfigured.
+   */
+  authStatus(_provider: string): Promise<LlmProviderAuthStatus | undefined> {
+    return Promise.resolve(undefined)
+  }
+
+  /**
+   * Run one provider-owned interactive login and durably store its credential.
+   * @param provider - a route passed to `registerAdapter()` for this instance.
+   * @param type - one method returned by {@link authMethods}.
+   * @param _interaction - caller-owned prompts, notifications, and cancellation.
+   * @throws `LlmError` `UNSUPPORTED_AUTH` unless the adapter overrides this method.
+   */
+  login(
+    provider: string,
+    type: LlmInteractiveAuthType,
+    _interaction: LlmAuthInteraction,
+  ): Promise<void> {
+    return Promise.reject(new LlmError(
+      `provider "${provider}" does not support ${type} login`,
+      'UNSUPPORTED_AUTH',
+    ))
+  }
+
+  /**
+   * Remove a provider credential previously stored by this adapter.
+   * @param provider - a route passed to `registerAdapter()` for this instance.
+   * @throws `LlmError` `UNSUPPORTED_AUTH` unless the adapter overrides this method.
+   */
+  logout(provider: string): Promise<void> {
+    return Promise.reject(new LlmError(
+      `provider "${provider}" does not support logout`,
+      'UNSUPPORTED_AUTH',
+    ))
   }
 
   /**
@@ -452,7 +503,14 @@ export class LlmRuntime extends Service {
           || detached.some(seen => seen.provider === entry.provider)) {
           throw new LlmError(`configurable provider "${entry.provider}" is already declared`, 'DUPLICATE_DIRECTORY')
         }
-        detached.push({ ...entry, settingsPath: [...entry.settingsPath] })
+        if (entry.authMethods?.some(method => !(new Set<string>(['oauth'])).has(method))) {
+          throw new LlmError(`configurable provider "${entry.provider}" has an unsupported auth method`, 'INVALID_DIRECTORY')
+        }
+        detached.push({
+          ...entry,
+          settingsPath: [...entry.settingsPath],
+          ...entry.authMethods === undefined ? {} : { authMethods: [...entry.authMethods] },
+        })
       }
       for (const entry of held) this.directory.delete(entry.provider)
       for (const entry of detached) this.directory.set(entry.provider, entry)
@@ -488,7 +546,58 @@ export class LlmRuntime extends Service {
    * @returns detached directory entries in declaration order.
    */
   listConfigurableProviders(): LlmConfigurableProvider[] {
-    return [...this.directory.values()].map(entry => ({ ...entry, settingsPath: [...entry.settingsPath] }))
+    return [...this.directory.values()].map(entry => ({
+      ...entry,
+      settingsPath: [...entry.settingsPath],
+      ...entry.authMethods === undefined ? {} : { authMethods: [...entry.authMethods] },
+    }))
+  }
+
+  /**
+   * Return the interactive authentication methods for one registered route.
+   * @param provider - registered provider route key.
+   * @returns a detached list of supported methods.
+   */
+  providerAuthMethods(provider: string): readonly LlmInteractiveAuthType[] {
+    return [...this.registration(provider).adapter.authMethods(provider)]
+  }
+
+  /**
+   * Resolve one registered route's non-secret authentication state.
+   * @param provider - registered provider route key.
+   * @returns the current state, or undefined when no provider credential owns the route.
+   */
+  providerAuthStatus(provider: string): Promise<LlmProviderAuthStatus | undefined> {
+    return this.registration(provider).adapter.authStatus(provider)
+  }
+
+  /**
+   * Run one registered route's provider-owned interactive login.
+   * @param provider - registered provider route key.
+   * @param type - authentication method selected by the caller.
+   * @param interaction - caller-owned prompts, notifications, and cancellation.
+   */
+  providerLogin(
+    provider: string,
+    type: LlmInteractiveAuthType,
+    interaction: LlmAuthInteraction,
+  ): Promise<void> {
+    const registration = this.registration(provider)
+    if (!registration.adapter.authMethods(provider).includes(type)) {
+      return Promise.reject(new LlmError(
+        `provider "${provider}" does not support ${type} login`,
+        'UNSUPPORTED_AUTH',
+      ))
+    }
+    return registration.adapter.login(provider, type, interaction)
+  }
+
+  /**
+   * Remove one registered route's adapter-owned credential.
+   * @param provider - registered provider route key.
+   */
+  providerLogout(provider: string): Promise<void> {
+    return this.registration(provider).adapter.logout(provider)
   }
 
   /**

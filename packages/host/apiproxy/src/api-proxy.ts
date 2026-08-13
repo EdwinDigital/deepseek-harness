@@ -14,7 +14,7 @@ import { AttachmentError } from '@deepseek-ai/dsh-attachment'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import { contentHasImage, createUserMessage, freezeMessage, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import { errorChain } from '@deepseek-ai/dsh-llm'
-import type { ContentBlock, MessageSource } from '@deepseek-ai/dsh-llm'
+import type { ContentBlock, LlmAuthEvent, LlmAuthPrompt, MessageSource } from '@deepseek-ai/dsh-llm'
 import { isAppendSurfaceEvent, isJsonValue } from '@deepseek-ai/dsh-session'
 import type { JsonValue, Session, SessionEvent, SessionEventMap, SessionHeader, SessionId, UserMessage } from '@deepseek-ai/dsh-session'
 import type { SessionPersistence } from '@deepseek-ai/dsh-session-persistence'
@@ -37,6 +37,7 @@ import type { PresetBearingSession } from '@deepseek-ai/dsh-agent-presets'
 import type {} from '@deepseek-ai/dsh-tools'
 import type {
   ApiProxy, ConfigurableProviderView, CredentialView, GoalRef, HistoryEntry, HostFrame,
+  LlmAuthOperationView, LlmAuthPromptView,
   ModelCatalogFailure, ModelProviderGroup,
   ModelReasoning, MuxFrame, PromptContentPart, QuestionResponsePayload, SessionListMetadata, SessionProjectionsBlock, SessionSearchItem,
   QueuedInboxItem, SessionSummary, SettingsNamespaceView, SubagentAddress, JobView, ToolEventView,
@@ -134,6 +135,24 @@ const SESSION_SEARCH_PROVIDER_CALL_LIMIT = 100
 const COLD_SUMMARY_BATCH_SIZE = 16
 /** Default maximum artifact size eligible for one cold blankness read. */
 export const DEFAULT_COLD_BLANK_PROBE_MAX_BYTES = 1024
+/** Provider notifications retained for one recoverable authentication operation. */
+const AUTH_EVENT_LIMIT = 32
+
+interface PendingAuthPrompt {
+  view: LlmAuthPromptView
+  resolve(value: string): void
+  reject(error: Error): void
+}
+
+interface AuthOperation {
+  id: string
+  provider: string
+  status: LlmAuthOperationView['status']
+  events: LlmAuthEvent[]
+  controller: AbortController
+  prompt?: PendingAuthPrompt
+  error?: string
+}
 
 /** Conversation message event types (the pagination counting unit). */
 const MESSAGE_TYPES = new Set(['user/message', 'assistant/message'])
@@ -1131,6 +1150,90 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
   const pendingApprovals = new Map<RpcId, PendingApproval>()
   const muxQueues = new Set<FrameQueue<RpcRequest<MuxFrame>>>()
   const imageAdmissionChains = new WeakMap<Agent, Promise<void>>()
+  const authOperations = new Map<string, AuthOperation>()
+  const providerAuthOperations = new Map<string, AuthOperation>()
+
+  /** Detach one authentication operation for the wire without its live callbacks or signals. */
+  function authOperationView(operation: AuthOperation): LlmAuthOperationView {
+    return {
+      id: operation.id,
+      provider: operation.provider,
+      status: operation.status,
+      events: structuredClone(operation.events),
+      ...operation.prompt === undefined ? {} : { prompt: structuredClone(operation.prompt.view) },
+      ...operation.error === undefined ? {} : { error: operation.error },
+    }
+  }
+
+  /** Reject and release a prompt still owned by an operation. */
+  function rejectAuthPrompt(operation: AuthOperation, message: string): void {
+    const pending = operation.prompt
+    if (pending === undefined) return
+    delete operation.prompt
+    pending.reject(new Error(message))
+  }
+
+  /** Start provider login while keeping only one recoverable operation per provider. */
+  function startProviderAuth(provider: string, type: 'oauth'): AuthOperation {
+    const current = providerAuthOperations.get(provider)
+    if (current?.status === 'running') return current
+    if (current !== undefined) authOperations.delete(current.id)
+    const operation: AuthOperation = {
+      id: randomUUID(),
+      provider,
+      status: 'running',
+      events: [],
+      controller: new AbortController(),
+    }
+    authOperations.set(operation.id, operation)
+    providerAuthOperations.set(provider, operation)
+    void ctx.llm.providerLogin(provider, type, {
+      signal: operation.controller.signal,
+      notify(event) {
+        operation.events.push(structuredClone(event))
+        if (operation.events.length > AUTH_EVENT_LIMIT) operation.events.shift()
+      },
+      prompt(prompt: LlmAuthPrompt): Promise<string> {
+        if (operation.status !== 'running' || operation.controller.signal.aborted || prompt.signal?.aborted === true) {
+          return Promise.reject(new Error('provider login was cancelled'))
+        }
+        if (operation.prompt !== undefined) {
+          return Promise.reject(new Error('provider login requested more than one prompt at a time'))
+        }
+        const view: LlmAuthPromptView = prompt.type === 'select'
+          ? {
+            id: randomUUID(),
+            type: prompt.type,
+            message: prompt.message,
+            options: prompt.options.map(option => ({ ...option })),
+          }
+          : {
+            id: randomUUID(),
+            type: prompt.type,
+            message: prompt.message,
+            ...prompt.placeholder === undefined ? {} : { placeholder: prompt.placeholder },
+          }
+        return new Promise<string>((resolve, reject) => {
+          operation.prompt = { view, resolve, reject }
+        })
+      },
+    }).then(
+      () => {
+        if (operation.status !== 'running') return
+        rejectAuthPrompt(operation, 'provider login completed before its prompt was answered')
+        operation.status = 'succeeded'
+      },
+      (error: unknown) => {
+        if (operation.status !== 'running') return
+        rejectAuthPrompt(operation, 'provider login ended')
+        operation.status = operation.controller.signal.aborted ? 'cancelled' : 'failed'
+        if (operation.status === 'failed') {
+          operation.error = error instanceof Error ? error.message : String(error)
+        }
+      },
+    )
+    return operation
+  }
 
   /** Serialize image admission with model selection for one agent. */
   function serializeImageAdmission<T>(agent: Agent, operation: () => Promise<T>): Promise<T> {
@@ -3373,25 +3476,31 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         const active = new Set(registered.map(provider => provider.id))
         const directory = ctx.llm.listConfigurableProviders()
         const declared = new Set(directory.map(entry => entry.provider))
-        const views: ConfigurableProviderView[] = directory.map(entry => ({
-          provider: entry.provider,
-          displayName: entry.displayName,
-          settingsNs: entry.settingsNs,
-          settingsPath: [...entry.settingsPath],
-          active: active.has(entry.provider),
-          ...entry.declared === undefined ? {} : { declared: entry.declared },
-        }))
+        const views: ConfigurableProviderView[] = directory.map((entry) => {
+          const authMethods = active.has(entry.provider) ? ctx.llm.providerAuthMethods(entry.provider) : []
+          return {
+            provider: entry.provider,
+            displayName: entry.displayName,
+            settingsNs: entry.settingsNs,
+            settingsPath: [...entry.settingsPath],
+            active: active.has(entry.provider),
+            ...entry.declared === undefined ? {} : { declared: entry.declared },
+            ...authMethods.length === 0 ? {} : { authMethods: [...authMethods] },
+          }
+        })
         // Routes registered without a directory declaration still appear —
         // they exist and serve models — just with no settings address. No
         // adapter claimed them, so nothing can say whether they are shipped.
         for (const provider of registered) {
           if (declared.has(provider.id)) continue
+          const authMethods = ctx.llm.providerAuthMethods(provider.id)
           views.push({
             provider: provider.id,
             displayName: provider.name,
             settingsNs: '',
             settingsPath: [],
             active: true,
+            ...authMethods.length === 0 ? {} : { authMethods: [...authMethods] },
           })
         }
         return Promise.resolve(ok(request, { providers: views }))
@@ -3423,6 +3532,99 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
             details: { settingsNs, ...baseURL === undefined ? {} : { baseURL } },
           })
         }
+      },
+
+      async authStatus(request) {
+        const { provider } = request.payload
+        try {
+          const status = await ctx.llm.providerAuthStatus(provider)
+          const operation = providerAuthOperations.get(provider)
+          return ok(request, {
+            ...status === undefined ? {} : { status },
+            ...operation === undefined ? {} : { operation: authOperationView(operation) },
+          })
+        } catch (error: unknown) {
+          return err(request, {
+            code: 'internal',
+            message: error instanceof Error ? error.message : String(error),
+            details: {},
+          })
+        }
+      },
+
+      startAuth(request) {
+        const { provider, type } = request.payload
+        try {
+          const operation = startProviderAuth(provider, type)
+          return Promise.resolve(ok(request, { operation: authOperationView(operation) }))
+        } catch (error: unknown) {
+          return Promise.resolve(err(request, {
+            code: 'internal',
+            message: error instanceof Error ? error.message : String(error),
+            details: {},
+          }))
+        }
+      },
+
+      authOperation(request) {
+        const operation = authOperations.get(request.payload.id)
+        if (operation === undefined) {
+          return Promise.resolve(err(request, {
+            code: 'internal', message: 'provider login operation was not found', details: {},
+          }))
+        }
+        return Promise.resolve(ok(request, { operation: authOperationView(operation) }))
+      },
+
+      respondAuth(request) {
+        const operation = authOperations.get(request.payload.id)
+        const prompt = operation?.prompt
+        if (operation === undefined || operation.status !== 'running'
+          || prompt === undefined || prompt.view.id !== request.payload.promptId) {
+          return Promise.resolve(err(request, {
+            code: 'internal', message: 'provider login prompt is no longer pending', details: {},
+          }))
+        }
+        delete operation.prompt
+        prompt.resolve(request.payload.value)
+        return Promise.resolve(ok(request, { operation: authOperationView(operation) }))
+      },
+
+      cancelAuth(request) {
+        const operation = authOperations.get(request.payload.id)
+        if (operation === undefined) {
+          return Promise.resolve(err(request, {
+            code: 'internal', message: 'provider login operation was not found', details: {},
+          }))
+        }
+        if (operation.status === 'running') {
+          operation.status = 'cancelled'
+          operation.controller.abort()
+          rejectAuthPrompt(operation, 'provider login was cancelled')
+        }
+        return Promise.resolve(ok(request, { operation: authOperationView(operation) }))
+      },
+
+      async logout(request) {
+        const { provider } = request.payload
+        const operation = providerAuthOperations.get(provider)
+        if (operation?.status === 'running') {
+          operation.status = 'cancelled'
+          operation.controller.abort()
+          rejectAuthPrompt(operation, 'provider login was cancelled')
+        }
+        try {
+          await ctx.llm.providerLogout(provider)
+        } catch (error: unknown) {
+          return err(request, {
+            code: 'internal',
+            message: error instanceof Error ? error.message : String(error),
+            details: {},
+          })
+        }
+        if (operation !== undefined) authOperations.delete(operation.id)
+        providerAuthOperations.delete(provider)
+        return ok(request, {})
       },
     },
 

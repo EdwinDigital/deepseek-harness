@@ -96,6 +96,20 @@ it('boots the built plugin graph and renders a fixture session end to end', asyn
     expect(webSearchRow.querySelector('[data-web]')).not.toBeNull()
   }, { timeout: 10_000 })
 
+  // Provider OAuth crosses the same assembled bundle and fixture transport:
+  // Models recovers the Host-owned operation view and renders only its
+  // browser-safe device code and verification URL.
+  fireEvent.click(await screen.findByRole('button', { name: 'Settings' }))
+  const settings = await screen.findByRole('dialog', { name: 'Settings' })
+  fireEvent.click(within(settings).getByRole('button', { name: 'Models' }))
+  const connect = await within(settings).findByRole('button', { name: 'Connect' })
+  fireEvent.click(connect)
+  await within(settings).findByText('ABCD-EFGH')
+  expect(within(settings).getByRole('link', { name: 'Open GitHub verification' }).getAttribute('href'))
+    .toBe('https://github.com/login/device')
+  fireEvent.click(within(settings).getByRole('button', { name: 'Cancel login' }))
+  await within(settings).findByText('Authentication cancelled.')
+
   // Every bundle injected its plugin-owned style tag (the loader's CSS path).
   const styleOwners = [...document.head.querySelectorAll('style[data-plugin]')]
     .map(style => style.getAttribute('data-plugin'))
