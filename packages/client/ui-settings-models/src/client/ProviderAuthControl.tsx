@@ -34,21 +34,30 @@ export function ProviderAuthControl(
   useEffect(() => {
     if (operation?.status !== 'running') return
     let disposed = false
+    let refreshingStatus = false
     const timer = window.setInterval(() => {
       void llm.authOperation({ id: operation.id }).then(
         (response) => {
           if (disposed || !response.result.ok) return
           const next = response.result.value.operation
-          setOperation(next)
           if (next.status === 'succeeded') {
+            if (refreshingStatus) return
+            refreshingStatus = true
             void llm
               .authStatus({ provider: props.provider })
               .then((statusResponse) => {
-                if (disposed || !statusResponse.result.ok) return
+                if (disposed) return
+                if (!statusResponse.result.ok) {
+                  refreshingStatus = false
+                  return
+                }
                 setStatus(statusResponse.result.value.status)
+                setOperation(next)
                 props.onChanged()
-              })
+              }, () => { refreshingStatus = false })
+            return
           }
+          setOperation(next)
         },
         () => undefined,
       )

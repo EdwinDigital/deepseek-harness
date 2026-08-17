@@ -9,6 +9,7 @@ import {
   ModelsSection, needsSetup, providerCopy, providerTargetLabel, removeProviderProfile,
 } from '../src/client/ModelsSection.tsx'
 import type { ModelsSectionInjected, ModelsSectionProps } from '../src/client/ModelsSection.tsx'
+import { ProviderAuthControl } from '../src/client/ProviderAuthControl.tsx'
 import { pathOps } from '../src/client/ProviderEditor.tsx'
 import {
   DeepSeekModelsEditor, formatCapacity, modelDrafts, parseCapacity, validateDeepSeekModels,
@@ -304,6 +305,39 @@ describe('ModelsSection', () => {
       expect(scripted.face.llm.cancelAuth).toHaveBeenCalledWith({ id: 'auth-1' })
       expect(screen.getByText(en.oauthCancelled)).toBeTruthy()
     })
+  })
+
+  it('shows a successful OAuth login after the status refresh settles', async () => {
+    vi.useFakeTimers()
+    const status = Promise.withResolvers<ReturnType<typeof ok>>()
+    const llm = {
+      authOperation: vi.fn(() => Promise.resolve(ok({ operation: {
+        id: 'auth-success', provider: 'github-copilot', status: 'succeeded', events: [],
+      } }))),
+      authStatus: vi.fn(() => status.promise),
+    }
+    try {
+      render(<ProviderAuthControl
+        provider="github-copilot"
+        initialStatus={undefined}
+        initialOperation={{
+          id: 'auth-success', provider: 'github-copilot', status: 'running', events: [],
+        }}
+        api={{ llm } as never}
+        t={t}
+        onChanged={vi.fn()}
+      />)
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(750) })
+      expect(llm.authStatus).toHaveBeenCalledWith({ provider: 'github-copilot' })
+      await act(async () => {
+        status.resolve(ok({ status: { type: 'oauth' } }))
+        await status.promise
+      })
+      expect(screen.getByText(en.oauthConnected)).toBeTruthy()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('submits an empty optional text prompt for the github.com device flow', async () => {
