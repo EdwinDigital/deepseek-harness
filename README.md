@@ -30,6 +30,8 @@ To run from a repository checkout:
 git clone https://github.com/deepseek-ai/deepseek-harness.git
 cd deepseek-harness
 pnpm install
+# x64 Windows only
+# pnpm --filter '!@deepseek-ai/dsh-subagent-codex' install
 pnpm run build
 pnpm dsh web
 ```

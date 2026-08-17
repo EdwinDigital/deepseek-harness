@@ -29,8 +29,9 @@ npx @deepseek-ai/dsh web
 ```sh
 git clone https://github.com/deepseek-ai/deepseek-harness.git
 cd deepseek-harness
-# pnpm install
-pnpm --filter "!@deepseek-ai/dsh-subagent-codex" install
+pnpm install
+# x64 Windows only
+# pnpm --filter '!@deepseek-ai/dsh-subagent-codex' install
 pnpm run build
 pnpm dsh web
 ```

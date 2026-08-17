@@ -6,13 +6,47 @@
 
 /* Trigger row: match the other wide sidebar controls' compact vertical rhythm. */
 .trigger {
+  appearance: none;
   flex: none;
   display: flex;
   align-items: center;
   gap: 8px;
   width: calc(100% + 8px);
   height: 34px;
+  padding: 0 8px;
   margin: 4px -4px 4px;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.trigger:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.trigger.rail {
+  justify-content: center;
+  gap: 0;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  margin: 4px 0;
+  border-radius: 50%;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
 }
 
 .mask {

@@ -3,7 +3,6 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import type { DefaultTheme, PageData } from 'vitepress'
-import type { ViteDevServer } from 'vite'
 import { withMermaid } from 'vitepress-plugin-mermaid'
 import { landingLink, orderedPages, routeLink, sectionSpec, type DocsLocale, type DocsPage, type DocsSidebar } from '../docs.ts'
 import { docsSourceFiles, projectDocs } from '../../scripts/project-doc-site.ts'
@@ -102,7 +101,12 @@ function moduleNav(locale: DocsLocale): DefaultTheme.NavItem[] {
   ]
 }
 
-function watchCanonicalDocs(server: ViteDevServer): void {
+function watchCanonicalDocs(server: {
+  watcher: {
+    add(paths: readonly string[]): unknown
+    on(event: 'change', listener: (changed: string) => void): unknown
+  }
+}): void {
   const sources = docsSourceFiles()
   server.watcher.add(sources)
   server.watcher.on('change', (changed) => {

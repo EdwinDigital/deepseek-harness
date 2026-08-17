@@ -54,6 +54,22 @@ describe('web e2e: settings modal and General preferences', () => {
     const trigger = page.getByRole('button', { name: '设置', exact: true })
     expect(await trigger.getAttribute('aria-haspopup')).toBe('dialog')
     expect(await trigger.getAttribute('aria-expanded')).toBe('false')
+    expect(await trigger.evaluate((element) => {
+      const style = getComputedStyle(element)
+      return {
+        appearance: style.appearance,
+        backgroundColor: style.backgroundColor,
+        borderWidth: style.borderWidth,
+        borderRadius: style.borderRadius,
+        cursor: style.cursor,
+      }
+    })).toEqual({
+      appearance: 'none',
+      backgroundColor: 'rgba(0, 0, 0, 0)',
+      borderWidth: '0px',
+      borderRadius: '8px',
+      cursor: 'pointer',
+    })
     await trigger.click()
     const dialog = page.getByRole('dialog', { name: '设置' })
     await dialog.waitFor({ timeout: 10_000 })
@@ -238,6 +254,26 @@ describe('web e2e: settings modal and General preferences', () => {
     await page.keyboard.press('Escape')
     expect(tripwire.pageErrors).toEqual([])
   }, 90_000)
+
+  it('keeps the settings dialog inside a narrow viewport', async () => {
+    const narrowPage = await browser.newPage({ viewport: { width: 681, height: 712 }, locale: ZH_BROWSER_LOCALE })
+    try {
+      await narrowPage.goto(scaffold.baseUrl, { waitUntil: 'load' })
+      await narrowPage.waitForSelector('[class*="frame"]', { timeout: 30_000 })
+      await narrowPage.getByRole('button', { name: '设置', exact: true }).click()
+      const dialog = narrowPage.getByRole('dialog', { name: '设置' })
+      await dialog.waitFor({ timeout: 10_000 })
+
+      const box = await dialog.boundingBox()
+      expect(box).not.toBeNull()
+      expect(box!.x).toBeGreaterThanOrEqual(0)
+      expect(box!.y).toBeGreaterThanOrEqual(0)
+      expect(box!.x + box!.width).toBeLessThanOrEqual(681)
+      expect(box!.y + box!.height).toBeLessThanOrEqual(712)
+    } finally {
+      await narrowPage.close()
+    }
+  }, 60_000)
 
   it('flips the theme through the Appearance cubes and persists across reload and a distinct port', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-settings-appearance'))
