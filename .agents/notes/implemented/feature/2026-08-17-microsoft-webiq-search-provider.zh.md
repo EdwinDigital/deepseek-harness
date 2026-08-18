@@ -16,7 +16,7 @@ Web IQ 从自己的仓库以 `@edwindigital/dsh-web-search-microsoft-webiq` 发�
 
 Agent 调用继续使用来自 `@deepseek-ai/dsh-tool-web` 的中立 `web_search` 工具，不存在第二个面向模型的工具。已安装的提供方组合包与 DeepSeek 并存而非取代它——在用户显式选择另一个提供方之前，`web` 接缝保持 `deepseek-official`。未选定提供方的独立组合沿用既有的 `ctx.web` 规则：恰有一个可用提供方时自动选中，多个可用提供方则要求显式选择。
 
-本仓库只保留树外组合包无法自行完成的两处改动。
+本仓库只保留树外组合包无法自行完成的那一处改动。
 
 ## 运行期提供方选择
 
@@ -24,7 +24,9 @@ Agent 调用继续使用来自 `@deepseek-ai/dsh-tool-web` 的中立 `web_search
 
 ## 树外命名空间的浏览器暴露
 
-`@deepseek-ai/dsh-apiproxy` 中的 `WEB_SETTINGS_NAMESPACES` 决定 Web 客户端可读写哪些设置命名空间；不在其中的命名空间即便其拥有者已注册，也只会得到 `settings-not-exposed`。因此树外插件没有这里的条目就无法提供自己的配置卡片，`web-search-microsoft-webiq` 在包迁出本仓库后仍保留在列表中。在把该声明移交 `settings.register()` 的待办落地之前，每一个第三方配置界面都需要一次上游改动，这划定了可安装组合包格式当前的能力边界。
+卡片能被服务，曾经需要在 `@deepseek-ai/dsh-apiproxy` 的硬编码 `WEB_SETTINGS_NAMESPACES` allowlist 中有一条条目，这使得每一个第三方配置界面都要付出一次上游改动。该 allowlist 已退场：proxy 现在服务 `ctx.settings.describe()` 返回的全部命名空间，而 `settings.plugin.item` 以卡片所编辑的命名空间为 key。树外插件现在凭自己的注册就能抵达配置页，本仓库不再为提供方代持任何东西。
+
+外部卡片应注册到这个键控槽位；仍使用早先 `id`/`order` 列表形式的卡片不会被分发。
 
 ## 已评估的替代方案
 
@@ -45,7 +47,7 @@ Agent 调用继续使用来自 `@deepseek-ai/dsh-tool-web` 的中立 `web_search
 ## 验证
 
 - `dsh-web` 定向套件 22 项测试通过，含运行期提供方选择与 Settings 脱离时的回落。
-- ApiProxy 的配置测试通过：`web` 与 `web-search-microsoft-webiq` 已暴露，任意其他命名空间仍不可见。base 组合包两项组合测试通过，选中的提供方仍为 `deepseek-official`。
+- base 组合包两项组合测试通过，选中的提供方仍为 `deepseek-official`。
 - 把外部组合包装入一份临时 `DSH_HOME` 后，它被记入 `dsh.profile.bundles`，其行挂载进组合配置，卡片在插件设置页可达。
 
 ## 后果

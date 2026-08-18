@@ -16,7 +16,7 @@ Web IQ ships from its own repository as `@edwindigital/dsh-web-search-microsoft-
 
 Agent calls keep using the provider-neutral `web_search` tool from `@deepseek-ai/dsh-tool-web`; no second model-facing tool exists. An installed provider bundle registers alongside DeepSeek without replacing it — the `web` seam retains `deepseek-official` until a user explicitly selects another provider. A standalone composition with no selected provider keeps the existing `ctx.web` rule: exactly one usable provider auto-selects, while multiple usable providers require an explicit choice.
 
-This repository keeps only the two changes an out-of-tree bundle cannot make for itself.
+This repository keeps only the change an out-of-tree bundle cannot make for itself.
 
 ## Live provider selection
 
@@ -24,7 +24,9 @@ This repository keeps only the two changes an out-of-tree bundle cannot make for
 
 ## Browser exposure for out-of-tree namespaces
 
-`WEB_SETTINGS_NAMESPACES` in `@deepseek-ai/dsh-apiproxy` decides which settings namespaces the Web client may read and write; a namespace absent from it answers `settings-not-exposed` even when its owner registered it. An out-of-tree plugin therefore cannot serve its own configuration card without an entry here, so `web-search-microsoft-webiq` stays listed after the package left this repository. Until the deferred move of that declaration to `settings.register()` lands, every third-party configuration surface costs an upstream change, which bounds how far the installable-bundle format currently reaches.
+Serving the card once required an entry in a hardcoded `WEB_SETTINGS_NAMESPACES` allowlist in `@deepseek-ai/dsh-apiproxy`, which made every third-party configuration surface cost an upstream change. That allowlist is retired: the proxy serves whatever `ctx.settings.describe()` returns, and `settings.plugin.item` is keyed by the namespace a card edits. An out-of-tree plugin now reaches the configuration page on its own registrations, so this repository holds nothing on the provider's behalf.
+
+The keyed slot is what an external card registers against; a card still using the earlier `id`/`order` list form is not dispatched.
 
 ## Alternatives considered
 
@@ -45,7 +47,7 @@ This repository keeps only the two changes an out-of-tree bundle cannot make for
 ## Verification
 
 - The `dsh-web` focused suite passes 22 tests, including live provider selection and fallback when Settings detaches.
-- ApiProxy passes its configuration tests with `web` and `web-search-microsoft-webiq` exposed while arbitrary namespaces remain hidden. The base bundle passes its two composition tests with `deepseek-official` unchanged as the selected provider.
+- The base bundle passes its two composition tests with `deepseek-official` unchanged as the selected provider.
 - Installing the external bundle into a scratch `DSH_HOME` records it in `dsh.profile.bundles` and mounts its row in the composed configuration, with its card reachable in the Plugins settings page.
 
 ## Consequences
