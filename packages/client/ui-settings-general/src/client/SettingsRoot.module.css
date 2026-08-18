@@ -17,11 +17,14 @@
   padding: 0 10px 0 8px;
   box-sizing: border-box;
   border: none;
-  border-radius: 8px;
+  border-radius: 12px;
   background: transparent;
   color: var(--dsw-alias-label-primary);
   cursor: pointer;
-  font: inherit;
+  overflow: hidden;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 22px;
   text-align: left;
 }
 
@@ -29,16 +32,24 @@
   background: var(--dsw-alias-interactive-bg-hover);
 }
 
+/* Rail trigger: the same 36x36 circle box as the other rail controls. */
 .trigger.rail {
   justify-content: center;
   gap: 0;
   width: 36px;
   height: 36px;
   padding: 0;
-  margin: 4px 0;
+  margin: 8px 0 10px;
   border-radius: 50%;
 }
 
+.triggerLabel {
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* Full-viewport layer (figma Mask 501:29946 #000@24%): mask tokens match the
+   Modal primitive (--dsw-alias-bg-mask-1 + --dsw-mask-blur). */
 .overlay {
   position: fixed;
   inset: 0;
