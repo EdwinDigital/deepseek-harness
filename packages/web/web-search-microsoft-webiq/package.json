@@ -49,6 +49,7 @@
     "bundle": "tsdown",
     "watch": "tsdown --watch"
   },
+  "author": "EdwinDigital",
   "license": "MIT",
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:^",

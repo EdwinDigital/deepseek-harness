@@ -58,6 +58,8 @@ The package README documents configuration, credential precedence, selection beh
 
 **Ship Web IQ as a base composition row.** Rejected because the row would then exist without installation, and the same id inserted by the package's own bundle layer would collide with it, leaving `dsh plugin --profile web add` unusable. The other credential-bearing providers under `packages/web/` are likewise absent from the base composition.
 
+**Publish the package under its author's own npm scope while keeping it in this workspace.** Rejected because the single `@deepseek-ai/` scope is a workspace invariant the tooling enforces: release-family discovery and the npm publication baseline throw on any other scope under `packages/`, while the license, cordis-peer, and module-graph gates select packages by that prefix and would silently stop covering the package. An author scope belongs to an out-of-tree plugin repository, which the installable bundle format already supports; authorship inside this workspace is carried by the manifest `author` field.
+
 **Require a restart after changing the default provider.** Rejected because provider resolution already occurs per operation. Reading a settings-backed provider id at the same point preserves in-flight calls and makes the next operation reflect the committed choice.
 
 ## Verification
