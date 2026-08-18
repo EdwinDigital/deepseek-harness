@@ -78,7 +78,7 @@ interface CredentialState {
   readonly writable: boolean
 }
 
-const DEFAULT_API_KEY_REF = 'WEBIQ_API_KEY'
+const DEFAULT_API_KEY_REF = 'MICROSOFT_WEBIQ_API_KEY'
 const PROVIDER_ID = 'microsoft-webiq'
 
 /** Coordinate the provider namespace, shared selection namespace, and credential domain. */

@@ -29,7 +29,7 @@ dsh plugin --profile web add ./packages/web/web-search-microsoft-webiq
     - id: web-search-microsoft-webiq
       name: '@deepseek-ai/dsh-web-search-microsoft-webiq'
       config:
-        apiKeyEnv: WEBIQ_API_KEY
+        apiKeyEnv: MICROSOFT_WEBIQ_API_KEY
 ```
 
 直接挂载配置行的组合则在 seam 与工具旁声明同一行：
@@ -43,7 +43,7 @@ dsh plugin --profile web add ./packages/web/web-search-microsoft-webiq
 - id: web-search-microsoft-webiq
   name: '@deepseek-ai/dsh-web-search-microsoft-webiq'
   config:
-    apiKeyEnv: WEBIQ_API_KEY
+    apiKeyEnv: MICROSOFT_WEBIQ_API_KEY
 
 - id: tool-web
   name: '@deepseek-ai/dsh-tool-web'
@@ -60,7 +60,7 @@ web:
 
 ## 凭据
 
-默认凭据引用为 `WEBIQ_API_KEY`。每次搜索均按以下顺序解析：
+默认凭据引用为 `MICROSOFT_WEBIQ_API_KEY`。每次搜索均按以下顺序解析：
 
 1. 直接 Cordis 组合中的非空字面量 `apiKey`。
 2. 可选的 `ctx.credentials` 服务按 `apiKeyEnv` 解析。
@@ -73,7 +73,7 @@ web:
 | 配置键 | 默认值 | 含义 |
 |---|---|---|
 | `apiKey` | 未设置 | 用于直接组合的 API 密钥字面量。建议使用 `apiKeyEnv`；非空字面量优先。 |
-| `apiKeyEnv` | `WEBIQ_API_KEY` | 每次搜索都会解析的凭据引用。属于部署选择；浏览器卡片既不展示也不编辑它。 |
+| `apiKeyEnv` | `MICROSOFT_WEBIQ_API_KEY` | 每次搜索都会解析的凭据引用。属于部署选择；浏览器卡片既不展示也不编辑它。 |
 | `endpoint` | `https://api.microsoft.ai/v3/search/web` | 完整的 HTTPS Web Search v3 端点。可以使用部署代理，但代理会收到已解析的密钥。 |
 | `language` | 未设置 | 可选的两位 ISO 639-1 界面语言。Web IQ 默认为 `en`。 |
 | `region` | 未设置 | 可选的两位国家或地区代码。Web IQ 默认为 `US`。 |
@@ -135,4 +135,4 @@ content-type: application/json
 - `site:` 和 `-site:` 查询运算符可能降低相关性；无论 SafeSearch 如何设置，`site:` 都可能返回成人内容。
 - 自定义端点决定 API 密钥会被发送到哪里，并且必须使用 HTTPS。
 - 凭据可用性是异步的。`available()` 可以确认解析器存在，但已选择且无法解析出值的提供方会在搜索开始时失败。
-- 真实 API 覆盖为可选项：运行 `tests/microsoft-webiq.e2e.ts` 前请设置 `WEBIQ_API_KEY`。
+- 真实 API 覆盖为可选项：运行 `tests/microsoft-webiq.e2e.ts` 前请设置 `MICROSOFT_WEBIQ_API_KEY`。

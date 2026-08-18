@@ -7,6 +7,7 @@ import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-sett
 import type {} from '@deepseek-ai/dsh-web'
 import z from '@deepseek-ai/schemastery'
 import {
+  MICROSOFT_WEBIQ_DEFAULT_API_KEY_ENV,
   MICROSOFT_WEBIQ_DEFAULT_ENDPOINT,
   MICROSOFT_WEBIQ_DEFAULT_MAX_LENGTH,
   MICROSOFT_WEBIQ_DEFAULT_SAFE_SEARCH,
@@ -15,6 +16,7 @@ import {
 import type { MicrosoftWebIqSearchProviderOptions } from './provider.ts'
 
 export {
+  MICROSOFT_WEBIQ_DEFAULT_API_KEY_ENV,
   MICROSOFT_WEBIQ_DEFAULT_ENDPOINT,
   MICROSOFT_WEBIQ_DEFAULT_MAX_LENGTH,
   MICROSOFT_WEBIQ_DEFAULT_SAFE_SEARCH,
@@ -30,7 +32,6 @@ export const name = 'web-search-microsoft-webiq'
 /** The web seam this provider registers into. */
 export const inject = ['web']
 
-const DEFAULT_API_KEY_ENV = 'WEBIQ_API_KEY'
 const CREDENTIAL_REF_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/u
 const HTTPS_ENDPOINT_PATTERN = /^https:\/\/[^\s]+$/u
 const ISO_CODE_PATTERN = /^[A-Za-z]{2}$/u
@@ -59,7 +60,7 @@ export const Config: z<Config> = z.object({
   apiKeyEnv: z.string()
     .pattern(CREDENTIAL_REF_PATTERN)
     .role('credential-ref')
-    .default(DEFAULT_API_KEY_ENV),
+    .default(MICROSOFT_WEBIQ_DEFAULT_API_KEY_ENV),
   endpoint: z.string()
     .pattern(HTTPS_ENDPOINT_PATTERN)
     .default(MICROSOFT_WEBIQ_DEFAULT_ENDPOINT),
@@ -106,7 +107,7 @@ function resolveOptions(
   ctx: Context,
   config: Config,
 ): MicrosoftWebIqSearchProviderOptions {
-  const apiKeyEnv = credentialRef(config.apiKeyEnv ?? DEFAULT_API_KEY_ENV)
+  const apiKeyEnv = credentialRef(config.apiKeyEnv ?? MICROSOFT_WEBIQ_DEFAULT_API_KEY_ENV)
   const literalApiKey = config.apiKey !== undefined && config.apiKey.length > 0
     ? config.apiKey
     : undefined

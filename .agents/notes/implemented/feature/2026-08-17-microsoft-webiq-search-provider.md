@@ -28,7 +28,7 @@ The provider snapshots all resolved options once at operation entry. A settings 
 
 ## Configuration and selection
 
-The Host plugin owns settings namespace `web-search-microsoft-webiq`. Its schema includes a literal secret only for direct Cordis composition, a credential reference defaulting to `WEBIQ_API_KEY`, an endpoint defaulting to the Microsoft Web IQ Web Search URL, optional language and region, `maxLength` defaulting to 5,000, and `safeSearch` defaulting to `strict`. Credential resolution checks a configured literal first, then the optional credentials service, then the launch environment. A missing key fails the search with `WEB_PROVIDER_CREDENTIAL_MISSING` and names the reference without returning its value.
+The Host plugin owns settings namespace `web-search-microsoft-webiq`. Its schema includes a literal secret only for direct Cordis composition, a credential reference defaulting to `MICROSOFT_WEBIQ_API_KEY`, an endpoint defaulting to the Microsoft Web IQ Web Search URL, optional language and region, `maxLength` defaulting to 5,000, and `safeSearch` defaulting to `strict`. Credential resolution checks a configured literal first, then the optional credentials service, then the launch environment. A missing key fails the search with `WEB_PROVIDER_CREDENTIAL_MISSING` and names the reference without returning its value.
 
 `@deepseek-ai/dsh-web` owns settings namespace `web` for `searchProvider` and `fetchProvider`. The service reads the active section at execution time and falls back to the composition entry when no settings service is mounted. Existing environment variables remain fallbacks for absent fields. A committed `searchProvider` change therefore controls the next `web_search` call without interrupting a call already in flight or making Settings a required service.
 
@@ -65,7 +65,7 @@ The package README documents configuration, credential precedence, selection beh
 ## Verification
 
 - The `dsh-web` focused suite passes 22 tests, including live provider selection and fallback when Settings detaches.
-- The Web IQ Host suites pass 24 keyless tests for request construction, protocol limits, external response validation, credentials, cancellation, settings layering, lifecycle, and the invariant companion. The real API probe remains opt-in through `WEBIQ_API_KEY`.
+- The Web IQ Host suites pass 24 keyless tests for request construction, protocol limits, external response validation, credentials, cancellation, settings layering, lifecycle, and the invariant companion. The real API probe remains opt-in through `MICROSOFT_WEBIQ_API_KEY`.
 - The browser controller and card/registration suites pass 22 tests for write-only credentials, stale-read suppression, non-secret settings, default selection, delayed slot declaration, failed-draft retention, URL validation, and disposal.
 - ApiProxy passes 32 configuration tests with `web` and `web-search-microsoft-webiq` exposed while arbitrary namespaces remain hidden. The base bundle passes its two composition tests with `deepseek-official` unchanged as the selected provider.
 - The Host, Client, and Web production builds complete. The keyless plugin-configuration Playwright file passes seven scenarios, including an empty password control and a persisted explicit Web IQ selection; the full GUI suite passes 3,762 tests with one existing skip.

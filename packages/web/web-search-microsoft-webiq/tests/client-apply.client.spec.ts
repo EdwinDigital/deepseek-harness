@@ -96,7 +96,7 @@ describe('Microsoft Web IQ browser plugin', () => {
     await vi.waitFor(() => { expect(b.describe).toHaveBeenCalled() })
     b.describe.mockClear()
 
-    b.remote.$dispatch('credentials/updated', ['WEBIQ_API_KEY'])
+    b.remote.$dispatch('credentials/updated', ['MICROSOFT_WEBIQ_API_KEY'])
 
     await vi.waitFor(() => { expect(b.describe).toHaveBeenCalledOnce() })
     await b.ctx.fiber.dispose()

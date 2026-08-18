@@ -166,7 +166,7 @@ describe('MicrosoftWebIqSearchProvider failures', () => {
     await expect(provider({ apiKey: '' }).search({ query: 'q' }))
       .rejects.toThrow(expect.objectContaining({
         code: 'WEB_PROVIDER_CREDENTIAL_MISSING',
-        message: expect.stringContaining('WEBIQ_API_KEY') as string,
+        message: expect.stringContaining('MICROSOFT_WEBIQ_API_KEY') as string,
       }))
   })
 

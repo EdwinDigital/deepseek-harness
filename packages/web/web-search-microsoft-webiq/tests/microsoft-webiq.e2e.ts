@@ -6,7 +6,7 @@ import {
   MicrosoftWebIqSearchProvider,
 } from '../src/provider.ts'
 
-const apiKey = process.env.WEBIQ_API_KEY
+const apiKey = process.env.MICROSOFT_WEBIQ_API_KEY
 const maybe = apiKey !== undefined && apiKey.length > 0 ? describe : describe.skip
 
 maybe('MicrosoftWebIqSearchProvider real API', () => {

@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/web/web-search-microsoft-webiq/README.md
-README.md: c00df1a6f075cb0feaf7cb435127f6d0778d39aa
-README.zh.md: 4dedae18ccadbbef5e40cee693e858e6413f3c3c
+README.md: fa4ea0a4012cec1292bbe33848882fc452c0bc67
+README.zh.md: 25616b9091c9298291b64cb0bb1365506bcf2b3c

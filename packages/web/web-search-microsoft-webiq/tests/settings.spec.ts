@@ -115,9 +115,9 @@ describe('web-search-microsoft-webiq settings', () => {
     await bench.ctx.fiber.dispose()
   })
 
-  it('uses WEBIQ_API_KEY from the launch environment when no stored key exists', async () => {
-    const previous = process.env.WEBIQ_API_KEY
-    process.env.WEBIQ_API_KEY = 'environment-key'
+  it('uses MICROSOFT_WEBIQ_API_KEY from the launch environment when no stored key exists', async () => {
+    const previous = process.env.MICROSOFT_WEBIQ_API_KEY
+    process.env.MICROSOFT_WEBIQ_API_KEY = 'environment-key'
     const ctx = new Context()
     try {
       await ctx.plugin(WebRuntime, { searchProvider: MICROSOFT_WEBIQ_PROVIDER_ID }).await()
@@ -127,8 +127,8 @@ describe('web-search-microsoft-webiq settings', () => {
       expect((init.headers as Record<string, string>)['x-apikey']).toBe('environment-key')
     } finally {
       await ctx.fiber.dispose()
-      if (previous === undefined) delete process.env.WEBIQ_API_KEY
-      else process.env.WEBIQ_API_KEY = previous
+      if (previous === undefined) delete process.env.MICROSOFT_WEBIQ_API_KEY
+      else process.env.MICROSOFT_WEBIQ_API_KEY = previous
     }
   })
 

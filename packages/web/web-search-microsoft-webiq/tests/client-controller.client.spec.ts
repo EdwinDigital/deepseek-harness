@@ -50,7 +50,7 @@ function publishProvider(
     writable: true,
     value,
     base: {
-      apiKeyEnv: 'WEBIQ_API_KEY',
+      apiKeyEnv: 'MICROSOFT_WEBIQ_API_KEY',
       endpoint: 'https://api.microsoft.ai/v3/search/web',
       maxLength: 5000,
       safeSearch: 'strict',
@@ -102,7 +102,7 @@ describe('MicrosoftWebIqSettingsController credentials', () => {
 
     await expect(controller.saveApiKey('  webiq-secret  ')).resolves.toBe(true)
 
-    expect(credentials.set).toHaveBeenCalledWith({ ref: 'WEBIQ_API_KEY', value: 'webiq-secret' })
+    expect(credentials.set).toHaveBeenCalledWith({ ref: 'MICROSOFT_WEBIQ_API_KEY', value: 'webiq-secret' })
     expect(provider.set).not.toHaveBeenCalled()
     expect(controller.store.getSnapshot()).toMatchObject({ apiKeyConfigured: true, savingApiKey: false })
     await expect(controller.saveApiKey('   ')).resolves.toBe(false)
@@ -121,7 +121,7 @@ describe('MicrosoftWebIqSettingsController credentials', () => {
 
     controller.refreshCredential('OTHER_KEY')
     expect(credentials.describe).not.toHaveBeenCalled()
-    controller.refreshCredential('WEBIQ_API_KEY')
+    controller.refreshCredential('MICROSOFT_WEBIQ_API_KEY')
     await vi.waitFor(() => { expect(credentials.describe).toHaveBeenCalledOnce() })
     controller.dispose()
   })
@@ -148,7 +148,7 @@ describe('MicrosoftWebIqSettingsController credentials', () => {
         apiKeyConfigured: true,
       })
     })
-    first.resolve(credentialResponse('WEBIQ_API_KEY', false))
+    first.resolve(credentialResponse('MICROSOFT_WEBIQ_API_KEY', false))
     await Promise.resolve()
 
     expect(controller.store.getSnapshot()).toMatchObject({

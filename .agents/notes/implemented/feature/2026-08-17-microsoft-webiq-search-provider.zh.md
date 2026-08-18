@@ -28,7 +28,7 @@ Status: implemented
 
 ## 配置与选择
 
-Host 插件拥有设置命名空间 `web-search-microsoft-webiq`。其 schema 包含：仅用于直接 Cordis 组合的字面量 secret（密钥）、默认指向 `WEBIQ_API_KEY` 的凭据引用、默认指向 Microsoft Web IQ Web Search URL 的端点、可选语言和区域、默认值为 5,000 的 `maxLength`，以及默认值为 `strict` 的 `safeSearch`。凭据解析先检查配置的字面量，再检查可选凭据服务，最后检查启动环境。缺少密钥时，搜索以 `WEB_PROVIDER_CREDENTIAL_MISSING` 失败，并只指出引用名称而不返回其值。
+Host 插件拥有设置命名空间 `web-search-microsoft-webiq`。其 schema 包含：仅用于直接 Cordis 组合的字面量 secret（密钥）、默认指向 `MICROSOFT_WEBIQ_API_KEY` 的凭据引用、默认指向 Microsoft Web IQ Web Search URL 的端点、可选语言和区域、默认值为 5,000 的 `maxLength`，以及默认值为 `strict` 的 `safeSearch`。凭据解析先检查配置的字面量，再检查可选凭据服务，最后检查启动环境。缺少密钥时，搜索以 `WEB_PROVIDER_CREDENTIAL_MISSING` 失败，并只指出引用名称而不返回其值。
 
 `@deepseek-ai/dsh-web` 为 `searchProvider` 和 `fetchProvider` 拥有设置命名空间 `web`。服务在执行时读取活动设置区段；未挂载设置服务时，回退到组合配置。现有环境变量仍作为字段缺失时的回退。因此，已提交的 `searchProvider` 变更无需中断正在执行的调用，也无需让 Settings 成为必需服务，就能控制下一次 `web_search` 调用。
 
@@ -65,7 +65,7 @@ Host 设置 API 显式开放 `web-search-microsoft-webiq` 和 `web`。必须修�
 ## 验证
 
 - `dsh-web` 聚焦套件通过 22 项测试，包括实时提供方选择和 Settings 脱离后的回退。
-- Web IQ Host 套件通过 24 项无密钥测试，覆盖请求构造、协议限制、外部响应校验、凭据、取消、设置分层、生命周期和 invariant companion。真实 API 冒烟仍通过 `WEBIQ_API_KEY` 选择性启用。
+- Web IQ Host 套件通过 24 项无密钥测试，覆盖请求构造、协议限制、外部响应校验、凭据、取消、设置分层、生命周期和 invariant companion。真实 API 冒烟仍通过 `MICROSOFT_WEBIQ_API_KEY` 选择性启用。
 - 浏览器控制器与卡片／注册套件通过 22 项测试，覆盖只写凭据、陈旧读取抑制、非敏感设置、默认选择、延迟插槽声明、失败草稿保留、URL 校验和资源释放。
 - ApiProxy 的 32 项配置测试通过；`web` 与 `web-search-microsoft-webiq` 已开放，而任意 namespace 仍保持隐藏。基础 bundle 的两项组合测试通过，选中的提供方仍是 `deepseek-official`。
 - Host、Client 和 Web 生产构建完成。无密钥插件配置 Playwright 文件通过 7 个场景，包括空密码控件和持久化的 Web IQ 显式选择；完整 GUI 套件通过 3,762 项测试，并保留 1 项既有跳过。

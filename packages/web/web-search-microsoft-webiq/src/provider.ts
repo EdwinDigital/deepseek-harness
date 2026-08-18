@@ -21,6 +21,9 @@ export const MICROSOFT_WEBIQ_PROVIDER_ID = 'microsoft-webiq'
 /** Public Microsoft Web IQ Web Search v3 endpoint. */
 export const MICROSOFT_WEBIQ_DEFAULT_ENDPOINT = 'https://api.microsoft.ai/v3/search/web'
 
+/** Default credential reference; provider-qualified so an unrelated `WEBIQ_API_KEY` cannot shadow it. */
+export const MICROSOFT_WEBIQ_DEFAULT_API_KEY_ENV = 'MICROSOFT_WEBIQ_API_KEY'
+
 /** Default maximum passage length sent to Web IQ. */
 export const MICROSOFT_WEBIQ_DEFAULT_MAX_LENGTH = 5000
 
@@ -185,7 +188,7 @@ export class MicrosoftWebIqSearchProvider implements WebSearchProvider {
       )
     }
     if (resolved !== undefined && resolved.length > 0) return resolved
-    const ref = options.apiKeyEnv ?? 'WEBIQ_API_KEY'
+    const ref = options.apiKeyEnv ?? MICROSOFT_WEBIQ_DEFAULT_API_KEY_ENV
     throw new WebError(
       `Microsoft Web IQ has no API key for "${ref}"; store it through the credentials service,`
       + ' export it in the launching environment, or set a literal "apiKey" in the plugin config',

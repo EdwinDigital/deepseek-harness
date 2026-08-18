@@ -29,7 +29,7 @@ Either form records the dependency, appends the package to the profile's `dsh.pr
     - id: web-search-microsoft-webiq
       name: '@deepseek-ai/dsh-web-search-microsoft-webiq'
       config:
-        apiKeyEnv: WEBIQ_API_KEY
+        apiKeyEnv: MICROSOFT_WEBIQ_API_KEY
 ```
 
 A composition that mounts rows directly states the same row beside the seam and the tool:
@@ -43,7 +43,7 @@ A composition that mounts rows directly states the same row beside the seam and 
 - id: web-search-microsoft-webiq
   name: '@deepseek-ai/dsh-web-search-microsoft-webiq'
   config:
-    apiKeyEnv: WEBIQ_API_KEY
+    apiKeyEnv: MICROSOFT_WEBIQ_API_KEY
 
 - id: tool-web
   name: '@deepseek-ai/dsh-tool-web'
@@ -60,7 +60,7 @@ web:
 
 ## Credentials
 
-The default credential reference is `WEBIQ_API_KEY`. Resolution occurs for every search in this order:
+The default credential reference is `MICROSOFT_WEBIQ_API_KEY`. Resolution occurs for every search in this order:
 
 1. A non-empty literal `apiKey` from direct Cordis composition.
 2. The optional `ctx.credentials` service for `apiKeyEnv`.
@@ -73,7 +73,7 @@ The browser card writes replacement keys only through the credentials RPC. The p
 | Key | Default | Meaning |
 |---|---|---|
 | `apiKey` | omitted | Literal API key for direct composition. Prefer `apiKeyEnv`; a non-empty literal wins. |
-| `apiKeyEnv` | `WEBIQ_API_KEY` | Credential reference resolved for each search. A deployment choice; the browser card neither shows nor edits it. |
+| `apiKeyEnv` | `MICROSOFT_WEBIQ_API_KEY` | Credential reference resolved for each search. A deployment choice; the browser card neither shows nor edits it. |
 | `endpoint` | `https://api.microsoft.ai/v3/search/web` | Full HTTPS Web Search v3 endpoint. A deployment proxy may be used, but it receives the resolved key. |
 | `language` | omitted | Optional two-letter ISO 639-1 interface language. Web IQ defaults to `en`. |
 | `region` | omitted | Optional two-letter country or region code. Web IQ defaults to `US`. |
@@ -135,4 +135,4 @@ Append-only. The tool result follows the reusable conversation prefix and does n
 - `site:` and `-site:` query operators can reduce relevance; `site:` may return adult content regardless of SafeSearch.
 - A custom endpoint determines where the API key is sent and must use HTTPS.
 - Credential availability is asynchronous. `available()` can confirm that a resolver exists, but a selected provider with no resolved value fails when the search starts.
-- Real API coverage is opt-in: set `WEBIQ_API_KEY` before running `tests/microsoft-webiq.e2e.ts`.
+- Real API coverage is opt-in: set `MICROSOFT_WEBIQ_API_KEY` before running `tests/microsoft-webiq.e2e.ts`.
