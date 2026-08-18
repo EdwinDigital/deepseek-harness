@@ -47,7 +47,7 @@ export function apply(ctx: ClientContext): void {
     inject: () => ({
       hooks: { microsoftWebIqSettings: controller.store },
       saveApiKey: (value: string) => controller.saveApiKey(value),
-      setDefault: () => controller.setDefault(),
+      setDefault: (enabled: boolean) => controller.setDefault(enabled),
       saveSettings: (patch: Parameters<typeof controller.saveSettings>[0]) =>
         controller.saveSettings(patch),
     }),

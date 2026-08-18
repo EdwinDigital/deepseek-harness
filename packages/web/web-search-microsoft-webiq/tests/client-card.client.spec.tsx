@@ -71,7 +71,7 @@ describe('MicrosoftWebIqSettingsCard', () => {
     const bench = mount()
     fireEvent.click(screen.getByRole('button', { name: `${en.expand}: ${en.title}` }))
     const input = screen.getByLabelText(en.apiKey)
-    const save = screen.getByRole('button', { name: en.saveApiKey })
+    const save = screen.getByRole('button', { name: en.saveSettings })
     expect(save).toHaveProperty('disabled', true)
 
     fireEvent.change(input, { target: { value: ' webiq-secret ' } })
@@ -79,17 +79,47 @@ describe('MicrosoftWebIqSettingsCard', () => {
 
     await waitFor(() => { expect(bench.saveApiKey).toHaveBeenCalledWith('webiq-secret') })
     await waitFor(() => { expect(input).toHaveProperty('value', '') })
+    expect(bench.saveSettings).not.toHaveBeenCalled()
   })
 
-  it('sets the provider as default and disables the command once selected', async () => {
+  it('stores the key and the settings from one save command', async () => {
     const bench = mount()
     fireEvent.click(screen.getByRole('button', { name: `${en.expand}: ${en.title}` }))
-    fireEvent.click(screen.getByRole('button', { name: en.setDefault }))
-    await waitFor(() => { expect(bench.setDefault).toHaveBeenCalledOnce() })
+
+    fireEvent.change(screen.getByLabelText(en.apiKey), { target: { value: 'webiq-secret' } })
+    fireEvent.change(screen.getByLabelText(en.endpoint), { target: { value: 'https://proxy.test/web' } })
+    fireEvent.click(screen.getByRole('button', { name: en.saveSettings }))
+
+    await waitFor(() => { expect(bench.saveApiKey).toHaveBeenCalledWith('webiq-secret') })
+    await waitFor(() => {
+      expect(bench.saveSettings).toHaveBeenCalledWith(
+        expect.objectContaining({ endpoint: 'https://proxy.test/web' }),
+      )
+    })
+  })
+
+  it('toggles the provider on and off through one switch', async () => {
+    const bench = mount()
+    fireEvent.click(screen.getByRole('button', { name: `${en.expand}: ${en.title}` }))
+    const toggle = screen.getByRole('switch', { name: en.useAsDefault })
+    expect(toggle.getAttribute('aria-checked')).toBe('false')
+
+    fireEvent.click(toggle)
+    await waitFor(() => { expect(bench.setDefault).toHaveBeenCalledWith(true) })
 
     act(() => { bench.store.set({ ...READY, isDefault: true }) })
+    expect(screen.getByRole('switch', { name: en.useAsDefault }).getAttribute('aria-checked')).toBe('true')
 
-    expect(screen.getByRole('button', { name: en.defaultSelected })).toHaveProperty('disabled', true)
+    fireEvent.click(screen.getByRole('switch', { name: en.useAsDefault }))
+    await waitFor(() => { expect(bench.setDefault).toHaveBeenLastCalledWith(false) })
+  })
+
+  it('explains a key the launch environment owns instead of a dead control', () => {
+    mount({ apiKeyConfigured: true, apiKeyWritable: false })
+    fireEvent.click(screen.getByRole('button', { name: `${en.expand}: ${en.title}` }))
+
+    expect(screen.getByLabelText(en.apiKey)).toHaveProperty('disabled', true)
+    expect(screen.getByText(en.apiKeyLocked)).toBeTruthy()
   })
 
   it('stages and saves non-secret provider settings together', async () => {
@@ -105,7 +135,6 @@ describe('MicrosoftWebIqSettingsCard', () => {
 
     await waitFor(() => {
       expect(bench.saveSettings).toHaveBeenCalledWith({
-        apiKeyEnv: 'WEBIQ_API_KEY',
         endpoint: 'https://proxy.test/web',
         language: 'zh',
         region: 'CN',
@@ -113,6 +142,14 @@ describe('MicrosoftWebIqSettingsCard', () => {
         safeSearch: 'off',
       })
     })
+  })
+
+  it('exposes no credential reference control', () => {
+    mount()
+    fireEvent.click(screen.getByRole('button', { name: `${en.expand}: ${en.title}` }))
+
+    expect(screen.getAllByRole('textbox').map(field => field.getAttribute('id')))
+      .toEqual(['webiq-endpoint', 'webiq-language', 'webiq-region', 'webiq-max-length'])
   })
 
   it('sends an explicit clear for an emptied optional setting', async () => {

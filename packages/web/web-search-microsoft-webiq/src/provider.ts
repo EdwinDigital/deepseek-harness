@@ -91,7 +91,6 @@ export class MicrosoftWebIqSearchProvider implements WebSearchProvider {
       && Number.isInteger(options.maxLength)
       && options.maxLength > 0
       && options.maxLength <= MAX_CONTENT_LENGTH
-      && (options.safeSearch === 'strict' || options.safeSearch === 'off')
   }
 
   async search(request: WebSearchRequest, signal?: AbortSignal): Promise<WebSearchResult> {
@@ -283,6 +282,9 @@ function abortable<T>(operation: Promise<T>, signal?: AbortSignal): Promise<T> {
       },
       (error: unknown) => {
         signal.removeEventListener('abort', onAbort)
+        // The awaited operation owns its rejection reason; wrapping it here would
+        // hide the provider's own WebError from the caller.
+        // oxlint-disable-next-line typescript/prefer-promise-reject-errors
         reject(error)
       },
     )

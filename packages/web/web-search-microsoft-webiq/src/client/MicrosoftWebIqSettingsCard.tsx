@@ -10,7 +10,6 @@ import type {
   MicrosoftWebIqSettingsPatch,
   MicrosoftWebIqSettingsState,
 } from './controller.ts'
-import type { MicrosoftWebIqLocaleKey } from './locales.ts'
 import css from './MicrosoftWebIqSettingsCard.module.css'
 
 /** Injection face supplied by this package's slot registration. */
@@ -21,8 +20,8 @@ export interface MicrosoftWebIqSettingsCardFace {
   }
   /** Store one replacement credential literal. */
   readonly saveApiKey: (value: string) => Promise<boolean>
-  /** Select Microsoft Web IQ in the shared web namespace. */
-  readonly setDefault: () => Promise<boolean>
+  /** Select or release Microsoft Web IQ in the shared web namespace. */
+  readonly setDefault: (enabled: boolean) => Promise<boolean>
   /** Store non-secret provider settings. */
   readonly saveSettings: (patch: MicrosoftWebIqSettingsPatch) => Promise<boolean>
 }
@@ -34,7 +33,6 @@ export type MicrosoftWebIqSettingsCardProps =
   & InjectFace<MicrosoftWebIqSettingsCardFace>
 
 interface SettingsDraft {
-  apiKeyEnv: string
   endpoint: string
   language: string
   region: string
@@ -44,12 +42,11 @@ interface SettingsDraft {
 
 /** Render the provider's package-local settings card. */
 export function MicrosoftWebIqSettingsCard(props: MicrosoftWebIqSettingsCardProps) {
-  const { t } = props as MicrosoftWebIqSettingsCardProps & {
-    t: (key: MicrosoftWebIqLocaleKey) => string
-  }
+  const { t } = props
   const state = props.useMicrosoftWebIqSettings(value => value)
   const [open, setOpen] = useState(false)
   const [apiKey, setApiKey] = useState('')
+  const [keyRejected, setKeyRejected] = useState(false)
   const [draft, setDraft] = useState<SettingsDraft>(() => draftOf(state.settings))
 
   useEffect(() => {
@@ -60,21 +57,24 @@ export function MicrosoftWebIqSettingsCard(props: MicrosoftWebIqSettingsCardProp
   if (!state.available) return null
   const validity = validateDraft(draft)
   const settingsDirty = !sameSettings(draft, state.settings)
-  const keyDisabled = apiKey.trim().length === 0
-    || !state.apiKeyWritable
-    || state.savingApiKey
-  const settingsDisabled = !state.writable
-    || state.savingSettings
-    || !validity.valid
-    || !settingsDirty
+  const keyPending = apiKey.trim().length > 0
+  const busy = state.savingApiKey || state.savingSettings
+  const savesKey = state.apiKeyWritable && keyPending
+  const savesSettings = state.writable && settingsDirty
+  const saveDisabled = busy || !validity.valid || !(savesKey || savesSettings)
 
-  const submitApiKey = async (): Promise<void> => {
-    const accepted = await props.saveApiKey(apiKey.trim())
-    if (accepted) setApiKey('')
-  }
-  const submitSettings = async (): Promise<void> => {
+  // One command covers both owners: the credential crosses the credentials RPC
+  // and the rest goes to the settings namespace, so each reports its own outcome.
+  const submitAll = async (): Promise<void> => {
     if (!validity.valid) return
-    await props.saveSettings(patchOf(draft))
+    if (savesKey) {
+      const accepted = await props.saveApiKey(apiKey.trim())
+      setKeyRejected(!accepted)
+      if (accepted) setApiKey('')
+    } else {
+      setKeyRejected(false)
+    }
+    if (savesSettings) await props.saveSettings(patchOf(draft))
   }
 
   return (
@@ -97,46 +97,27 @@ export function MicrosoftWebIqSettingsCard(props: MicrosoftWebIqSettingsCardProp
           <div className={css.body}>
             <div className={css.actionRow}>
               <div className={css.actionText}>
-                <label className={css.label} htmlFor="webiq-api-key">{t('apiKey')}</label>
-                <p className={css.hint}>{t('apiKeyHint')}</p>
-                <span className={css.badge}>{t(state.apiKeyConfigured ? 'apiKeySet' : 'apiKeyUnset')}</span>
-              </div>
-              <div>
-                <input
-                  id="webiq-api-key"
-                  className={css.input}
-                  type="password"
-                  autoComplete="off"
-                  value={apiKey}
-                  disabled={!state.apiKeyWritable}
-                  onChange={(event) => { setApiKey(event.target.value) }}
-                />
-                <button
-                  type="button"
-                  className={css.button}
-                  disabled={keyDisabled}
-                  onClick={() => { void submitApiKey() }}
-                >
-                  {t(state.savingApiKey ? 'savingApiKey' : 'saveApiKey')}
-                </button>
-              </div>
-            </div>
-            {state.failedAction === 'apiKey'
-              ? <p className={css.error} role="status">{t('apiKeyFailed')}</p>
-              : null}
-
-            <div className={css.actionRow}>
-              <div className={css.actionText}>
-                <span className={css.label}>{t('defaultSelected')}</span>
-                {state.isDefault ? <span className={css.badge}>{t('defaultSelected')}</span> : null}
+                <span className={css.label}>{t('useAsDefault')}</span>
+                <p className={css.hint}>
+                  {state.settingDefault ? t('settingDefault') : t('useAsDefaultHint')}
+                </p>
               </div>
               <button
                 type="button"
-                className={css.button}
-                disabled={state.isDefault || !state.defaultWritable || state.settingDefault}
-                onClick={() => { void props.setDefault() }}
+                className={css.toggle}
+                role="switch"
+                aria-checked={state.isDefault}
+                aria-label={t('useAsDefault')}
+                disabled={!state.defaultWritable || state.settingDefault}
+                onClick={() => { void props.setDefault(!state.isDefault) }}
               >
-                {t(state.isDefault ? 'defaultSelected' : state.settingDefault ? 'settingDefault' : 'setDefault')}
+                <span
+                  className={css.toggleTrack}
+                  data-on={state.isDefault || undefined}
+                  aria-hidden="true"
+                >
+                  <span className={css.toggleThumb} />
+                </span>
               </button>
             </div>
             {state.failedAction === 'default'
@@ -145,77 +126,98 @@ export function MicrosoftWebIqSettingsCard(props: MicrosoftWebIqSettingsCardProp
 
             <div className={css.form}>
               {!state.writable ? <p className={css.status}>{t('readOnly')}</p> : null}
-              <div className={css.fields}>
-                <TextField
-                  id="webiq-credential-ref"
-                  label={t('credentialRef')}
-                  value={draft.apiKeyEnv}
-                  disabled={!state.writable}
-                  invalid={!validity.apiKeyEnv}
-                  onChange={(value) => { setDraft({ ...draft, apiKeyEnv: value }) }}
-                />
-                <TextField
-                  id="webiq-endpoint"
-                  label={t('endpoint')}
-                  value={draft.endpoint}
-                  disabled={!state.writable}
-                  invalid={!validity.endpoint}
-                  wide
-                  onChange={(value) => { setDraft({ ...draft, endpoint: value }) }}
-                />
-                <TextField
-                  id="webiq-language"
-                  label={t('language')}
-                  value={draft.language}
-                  disabled={!state.writable}
-                  invalid={!validity.language}
-                  onChange={(value) => { setDraft({ ...draft, language: value }) }}
-                />
-                <TextField
-                  id="webiq-region"
-                  label={t('region')}
-                  value={draft.region}
-                  disabled={!state.writable}
-                  invalid={!validity.region}
-                  onChange={(value) => { setDraft({ ...draft, region: value }) }}
-                />
-                <TextField
-                  id="webiq-max-length"
-                  label={t('maxLength')}
-                  value={draft.maxLength}
-                  disabled={!state.writable}
-                  invalid={!validity.maxLength}
-                  onChange={(value) => { setDraft({ ...draft, maxLength: value }) }}
-                />
-                <label className={css.field} htmlFor="webiq-safe-search">
-                  <span className={css.label}>{t('safeSearch')}</span>
-                  <select
-                    id="webiq-safe-search"
-                    className={css.select}
-                    value={draft.safeSearch}
+              <section className={css.group}>
+                <h4 className={css.groupTitle}>{t('apiSection')}</h4>
+                <div className={css.fields}>
+                  <TextField
+                    id="webiq-endpoint"
+                    label={t('endpoint')}
+                    value={draft.endpoint}
                     disabled={!state.writable}
-                    onChange={(event) => {
-                      setDraft({ ...draft, safeSearch: event.target.value as 'strict' | 'off' })
-                    }}
-                  >
-                    <option value="strict">{t('strict')}</option>
-                    <option value="off">{t('off')}</option>
-                  </select>
-                </label>
-              </div>
+                    invalid={!validity.endpoint}
+                    wide
+                    onChange={(value) => { setDraft({ ...draft, endpoint: value }) }}
+                  />
+                  <div className={css.fieldWide}>
+                    <label className={css.label} htmlFor="webiq-api-key">{t('apiKey')}</label>
+                    <input
+                      id="webiq-api-key"
+                      className={css.input}
+                      type="password"
+                      autoComplete="off"
+                      value={apiKey}
+                      disabled={!state.apiKeyWritable}
+                      onChange={(event) => { setApiKey(event.target.value) }}
+                    />
+                    <p className={css.hint}>{t('apiKeyHint')}</p>
+                    <span className={css.badge}>
+                      {t(state.apiKeyConfigured ? 'apiKeySet' : 'apiKeyUnset')}
+                    </span>
+                    {state.apiKeyWritable
+                      ? null
+                      : <p className={css.status} role="status">{t('apiKeyLocked')}</p>}
+                  </div>
+                </div>
+              </section>
+              <section className={css.group}>
+                <h4 className={css.groupTitle}>{t('parameterSection')}</h4>
+                <div className={css.fields}>
+                  <TextField
+                    id="webiq-language"
+                    label={t('language')}
+                    value={draft.language}
+                    disabled={!state.writable}
+                    invalid={!validity.language}
+                    onChange={(value) => { setDraft({ ...draft, language: value }) }}
+                  />
+                  <TextField
+                    id="webiq-region"
+                    label={t('region')}
+                    value={draft.region}
+                    disabled={!state.writable}
+                    invalid={!validity.region}
+                    onChange={(value) => { setDraft({ ...draft, region: value }) }}
+                  />
+                  <TextField
+                    id="webiq-max-length"
+                    label={t('maxLength')}
+                    value={draft.maxLength}
+                    disabled={!state.writable}
+                    invalid={!validity.maxLength}
+                    onChange={(value) => { setDraft({ ...draft, maxLength: value }) }}
+                  />
+                  <label className={css.field} htmlFor="webiq-safe-search">
+                    <span className={css.label}>{t('safeSearch')}</span>
+                    <select
+                      id="webiq-safe-search"
+                      className={css.select}
+                      value={draft.safeSearch}
+                      disabled={!state.writable}
+                      onChange={(event) => {
+                        setDraft({ ...draft, safeSearch: event.target.value as 'strict' | 'off' })
+                      }}
+                    >
+                      <option value="strict">{t('strict')}</option>
+                      <option value="off">{t('off')}</option>
+                    </select>
+                  </label>
+                </div>
+              </section>
               <div className={css.formFooter}>
                 {!validity.valid
                   ? <p className={css.error} role="status">{t('invalidSettings')}</p>
-                  : state.failedAction === 'settings'
-                    ? <p className={css.error} role="status">{t('settingsFailed')}</p>
-                    : null}
+                  : keyRejected
+                    ? <p className={css.error} role="status">{t('apiKeyFailed')}</p>
+                    : state.failedAction === 'settings'
+                      ? <p className={css.error} role="status">{t('settingsFailed')}</p>
+                      : null}
                 <button
                   type="button"
                   className={css.button}
-                  disabled={settingsDisabled}
-                  onClick={() => { void submitSettings() }}
+                  disabled={saveDisabled}
+                  onClick={() => { void submitAll() }}
                 >
-                  {t(state.savingSettings ? 'savingSettings' : 'saveSettings')}
+                  {t(busy ? 'savingSettings' : 'saveSettings')}
                 </button>
               </div>
             </div>
@@ -255,7 +257,6 @@ function TextField(props: {
 /** Seed local drafts only from non-secret settings state. */
 function draftOf(settings: MicrosoftWebIqClientSettings): SettingsDraft {
   return {
-    apiKeyEnv: settings.apiKeyEnv ?? 'WEBIQ_API_KEY',
     endpoint: settings.endpoint ?? 'https://api.microsoft.ai/v3/search/web',
     language: settings.language ?? '',
     region: settings.region ?? '',
@@ -269,7 +270,6 @@ function patchOf(draft: SettingsDraft): MicrosoftWebIqSettingsPatch {
   const language = draft.language.trim()
   const region = draft.region.trim()
   return {
-    apiKeyEnv: draft.apiKeyEnv.trim(),
     endpoint: draft.endpoint.trim(),
     language: language.length === 0 ? undefined : language,
     region: region.length === 0 ? undefined : region,
@@ -281,8 +281,7 @@ function patchOf(draft: SettingsDraft): MicrosoftWebIqSettingsPatch {
 /** Compare normalized drafts against the resolved settings currently shown. */
 function sameSettings(draft: SettingsDraft, settings: MicrosoftWebIqClientSettings): boolean {
   const patch = patchOf(draft)
-  return patch.apiKeyEnv === (settings.apiKeyEnv ?? 'WEBIQ_API_KEY')
-    && patch.endpoint === (settings.endpoint ?? 'https://api.microsoft.ai/v3/search/web')
+  return patch.endpoint === (settings.endpoint ?? 'https://api.microsoft.ai/v3/search/web')
     && patch.language === settings.language
     && patch.region === settings.region
     && patch.maxLength === (settings.maxLength ?? 5000)
@@ -292,13 +291,11 @@ function sameSettings(draft: SettingsDraft, settings: MicrosoftWebIqClientSettin
 /** Validate the constraints enforced by the Host schema before enabling save. */
 function validateDraft(draft: SettingsDraft): {
   valid: boolean
-  apiKeyEnv: boolean
   endpoint: boolean
   language: boolean
   region: boolean
   maxLength: boolean
 } {
-  const apiKeyEnv = /^[A-Za-z_][A-Za-z0-9_]*$/u.test(draft.apiKeyEnv.trim())
   const endpointText = draft.endpoint.trim()
   const endpoint = URL.canParse(endpointText) && new URL(endpointText).protocol === 'https:'
   const language = draft.language.trim() === '' || /^[A-Za-z]{2}$/u.test(draft.language.trim())
@@ -307,8 +304,7 @@ function validateDraft(draft: SettingsDraft): {
     && Number(draft.maxLength.trim()) >= 1
     && Number(draft.maxLength.trim()) <= 500000
   return {
-    valid: apiKeyEnv && endpoint && language && region && maxLength,
-    apiKeyEnv,
+    valid: endpoint && language && region && maxLength,
     endpoint,
     language,
     region,

@@ -34,7 +34,6 @@ export interface WebRuntimeClientSettings {
 
 /** A provider-settings mutation; an explicit `undefined` clears an optional override. */
 export interface MicrosoftWebIqSettingsPatch {
-  readonly apiKeyEnv?: string | undefined
   readonly endpoint?: string | undefined
   readonly language?: string | undefined
   readonly region?: string | undefined
@@ -159,12 +158,14 @@ export class MicrosoftWebIqSettingsController {
   }
 
   /**
-   * Select Microsoft Web IQ in the shared web settings namespace.
-   * @returns whether the scope confirms the selection after settlement.
+   * Select or release Microsoft Web IQ in the shared web settings namespace.
+   * Releasing clears the user override so the composed default applies again.
+   * @param enabled - whether Web IQ should own `web.searchProvider`.
+   * @returns whether the scope confirms the requested state after settlement.
    */
-  async setDefault(): Promise<boolean> {
+  async setDefault(enabled: boolean): Promise<boolean> {
     const snapshot = this.webScope.getSnapshot()
-    if (snapshot.value?.searchProvider === PROVIDER_ID) return true
+    if ((snapshot.value?.searchProvider === PROVIDER_ID) === enabled) return true
     if (snapshot.status !== 'ready' || !snapshot.writable || this.settingDefault || this.disposed) {
       return false
     }
@@ -172,11 +173,13 @@ export class MicrosoftWebIqSettingsController {
     this.failedAction = undefined
     this.publish()
     try {
-      await this.webScope.set('searchProvider', PROVIDER_ID)
+      if (enabled) await this.webScope.set('searchProvider', PROVIDER_ID)
+      else await this.webScope.unset('searchProvider')
     } catch (_settingsWriteFailure) {
       // Scope state after settlement remains authoritative.
     }
-    const landed = this.webScope.getSnapshot().value?.searchProvider === PROVIDER_ID
+    const selected = this.webScope.getSnapshot().value?.searchProvider === PROVIDER_ID
+    const landed = selected === enabled
     this.settingDefault = false
     this.failedAction = landed ? undefined : 'default'
     this.publish()

@@ -84,7 +84,7 @@ describe('MicrosoftWebIqSearchProvider request mapping', () => {
       'x-apikey': 'webiq-secret',
       'content-type': 'application/json',
     })
-    expect(JSON.parse(String(init.body))).toEqual({
+    expect(JSON.parse(init.body as string)).toEqual({
       query: 'current TypeScript release',
       maxResults: 10,
       contentFormat: 'passage',
@@ -100,7 +100,7 @@ describe('MicrosoftWebIqSearchProvider request mapping', () => {
     await provider({ language: 'en', region: 'US' }).search({ query: 'q' })
 
     const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
-    expect(JSON.parse(String(init.body))).toEqual({
+    expect(JSON.parse(init.body as string)).toEqual({
       query: 'q',
       maxResults: 10,
       language: 'en',
@@ -118,7 +118,7 @@ describe('MicrosoftWebIqSearchProvider request mapping', () => {
     await provider().search({ query: 'q', maxResults: 200 })
 
     const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
-    expect(JSON.parse(String(init.body))).toMatchObject({ maxResults: 50 })
+    expect(JSON.parse(init.body as string)).toMatchObject({ maxResults: 50 })
   })
 
   it('accepts a 1,000-character query and rejects 1,001 before dispatch', async () => {
@@ -157,7 +157,7 @@ describe('MicrosoftWebIqSearchProvider operation snapshots', () => {
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
     expect(url).toBe('https://before.test/search')
     expect((init.headers as Record<string, string>)['x-apikey']).toBe('key-from-before')
-    expect(JSON.parse(String(init.body))).toMatchObject({ maxLength: 100 })
+    expect(JSON.parse(init.body as string)).toMatchObject({ maxLength: 100 })
   })
 })
 
@@ -166,7 +166,7 @@ describe('MicrosoftWebIqSearchProvider failures', () => {
     await expect(provider({ apiKey: '' }).search({ query: 'q' }))
       .rejects.toThrow(expect.objectContaining({
         code: 'WEB_PROVIDER_CREDENTIAL_MISSING',
-        message: expect.stringContaining('WEBIQ_API_KEY'),
+        message: expect.stringContaining('WEBIQ_API_KEY') as string,
       }))
   })
 
@@ -205,7 +205,7 @@ describe('MicrosoftWebIqSearchProvider failures', () => {
 
     await expect(provider().search({ query: 'q' })).rejects.toThrow(expect.objectContaining({
       code: 'WEB_PROVIDER_ERROR',
-      message: expect.stringMatching(/Rate limit exceeded.*RATE_LIMIT_EXCEEDED.*60s.*trace-456/u),
+      message: expect.stringMatching(/Rate limit exceeded.*RATE_LIMIT_EXCEEDED.*60s.*trace-456/u) as string,
     }))
   })
 

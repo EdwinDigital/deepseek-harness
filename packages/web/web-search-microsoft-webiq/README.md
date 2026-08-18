@@ -66,21 +66,21 @@ The default credential reference is `WEBIQ_API_KEY`. Resolution occurs for every
 2. The optional `ctx.credentials` service for `apiKeyEnv`.
 3. The launching environment for the same reference.
 
-The browser card writes replacement keys only through the credentials RPC. The password field is always blank after load and after an accepted save. Key literals are marked secret in the Host schema and are omitted from Settings descriptions, browser boot data, logs, and normal configuration reads. A missing key fails the selected provider with `WEB_PROVIDER_CREDENTIAL_MISSING` and names only the unresolved reference.
+The browser card writes replacement keys only through the credentials RPC. The password field is always blank after load and after an accepted save. Key literals are marked secret in the Host schema and are omitted from Settings descriptions, browser boot data, logs, and normal configuration reads. A missing key fails the selected provider with `WEB_PROVIDER_CREDENTIAL_MISSING` and names only the unresolved reference. A key inherited from the launch environment is the one layer this process cannot rewrite, so the card disables its password field and says which layer owns the key instead of failing an accepted-looking save.
 
 ## Config
 
 | Key | Default | Meaning |
 |---|---|---|
 | `apiKey` | omitted | Literal API key for direct composition. Prefer `apiKeyEnv`; a non-empty literal wins. |
-| `apiKeyEnv` | `WEBIQ_API_KEY` | Credential reference resolved for each search. |
+| `apiKeyEnv` | `WEBIQ_API_KEY` | Credential reference resolved for each search. A deployment choice; the browser card neither shows nor edits it. |
 | `endpoint` | `https://api.microsoft.ai/v3/search/web` | Full HTTPS Web Search v3 endpoint. A deployment proxy may be used, but it receives the resolved key. |
 | `language` | omitted | Optional two-letter ISO 639-1 interface language. Web IQ defaults to `en`. |
 | `region` | omitted | Optional two-letter country or region code. Web IQ defaults to `US`. |
 | `maxLength` | `5000` | Maximum passage characters per result; positive integer, maximum `500000`. |
 | `safeSearch` | `strict` | `strict` or `off`. Web IQ still blocks illegal content when set to `off`. |
 
-The Host owns settings namespace `web-search-microsoft-webiq`; provider selection lives separately in namespace `web`. The browser card can edit all non-secret provider fields, store a replacement key, and select Web IQ explicitly. Each owner is read back after a write, so a refused operation is reported rather than presented as accepted.
+The Host owns settings namespace `web-search-microsoft-webiq`; provider selection lives separately in namespace `web`. The card opens with a switch that selects Web IQ for `web_search` and, once off, clears the user override so the composed provider applies again. Below it, one API configuration group holds the endpoint and the API key, a search parameter group holds language, region, passage length, and SafeSearch, and a single command at the bottom commits both owners: the key crosses the credentials RPC and the rest goes to the settings namespace. The credential reference stays a deployment choice made in `cordis.yml`, so no configuration surface asks a user for an environment variable name. Each owner is read back after a write, so a refused operation is reported rather than presented as accepted.
 
 ## REST contract and mapping
 

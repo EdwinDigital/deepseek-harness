@@ -173,10 +173,30 @@ describe('MicrosoftWebIqSettingsController settings', () => {
       })
     })
 
-    await expect(controller.setDefault()).resolves.toBe(true)
+    await expect(controller.setDefault(true)).resolves.toBe(true)
 
     expect(web.set).toHaveBeenCalledWith('searchProvider', 'microsoft-webiq')
     expect(controller.store.getSnapshot()).toMatchObject({ isDefault: true, settingDefault: false })
+    controller.dispose()
+  })
+
+  it('clears the user override when the provider is switched off', async () => {
+    const provider = stubSettingsScope<MicrosoftWebIqClientSettings>()
+    const web = stubSettingsScope<WebRuntimeClientSettings>()
+    const controller = new MicrosoftWebIqSettingsController(provider.scope, web.scope, credentialsApi().api)
+    publishProvider(provider)
+    publishWeb(web, 'microsoft-webiq')
+    web.unset.mockImplementation((field: string) => {
+      web.publish({
+        value: { searchProvider: 'deepseek-official' },
+        user: { [field]: undefined },
+      })
+    })
+
+    await expect(controller.setDefault(false)).resolves.toBe(true)
+
+    expect(web.unset).toHaveBeenCalledWith('searchProvider')
+    expect(controller.store.getSnapshot()).toMatchObject({ isDefault: false, settingDefault: false })
     controller.dispose()
   })
 
@@ -187,7 +207,7 @@ describe('MicrosoftWebIqSettingsController settings', () => {
     publishProvider(provider)
     publishWeb(web)
 
-    await expect(controller.setDefault()).resolves.toBe(false)
+    await expect(controller.setDefault(true)).resolves.toBe(false)
 
     expect(controller.store.getSnapshot()).toMatchObject({ isDefault: false, failedAction: 'default' })
     controller.dispose()

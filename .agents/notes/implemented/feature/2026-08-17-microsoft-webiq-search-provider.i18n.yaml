@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-17-microsoft-webiq-search-provider.md
-2026-08-17-microsoft-webiq-search-provider.md: 7046effb2fd93bab56eeac6e479326f4cdbd0e09
-2026-08-17-microsoft-webiq-search-provider.zh.md: 302ed29a8a22eb899d96e0d5852242ac8c14ceee
+2026-08-17-microsoft-webiq-search-provider.md: 8ca6defd1d0cc3d0854016ef3fc2b9f70658e429
+2026-08-17-microsoft-webiq-search-provider.zh.md: 777b607ed8738b4d208dd3c93f18440aca5b485b

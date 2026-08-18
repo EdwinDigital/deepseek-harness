@@ -66,21 +66,21 @@ web:
 2. 可选的 `ctx.credentials` 服务按 `apiKeyEnv` 解析。
 3. 启动环境中的同名引用。
 
-浏览器卡片只通过 credentials RPC 写入替换密钥。密码输入框在每次加载后以及保存被接受后始终为空。Host schema 将密钥字面量标记为 secret，因此 Settings 描述、浏览器启动数据、日志和常规配置读取都不会包含它。缺少密钥时，已选择的提供方以 `WEB_PROVIDER_CREDENTIAL_MISSING` 失败，并且只给出未解析的引用名称。
+浏览器卡片只通过 credentials RPC 写入替换密钥。密码输入框在每次加载后以及保存被接受后始终为空。Host schema 将密钥字面量标记为 secret，因此 Settings 描述、浏览器启动数据、日志和常规配置读取都不会包含它。缺少密钥时，已选择的提供方以 `WEB_PROVIDER_CREDENTIAL_MISSING` 失败，并且只给出未解析的引用名称。继承自启动环境的密钥是本进程唯一无法改写的一层，因此卡片会禁用密码输入框并说明密钥归哪一层所有，而不是让一次看似已接受的保存失败。
 
 ## 配置
 
 | 配置键 | 默认值 | 含义 |
 |---|---|---|
 | `apiKey` | 未设置 | 用于直接组合的 API 密钥字面量。建议使用 `apiKeyEnv`；非空字面量优先。 |
-| `apiKeyEnv` | `WEBIQ_API_KEY` | 每次搜索都会解析的凭据引用。 |
+| `apiKeyEnv` | `WEBIQ_API_KEY` | 每次搜索都会解析的凭据引用。属于部署选择；浏览器卡片既不展示也不编辑它。 |
 | `endpoint` | `https://api.microsoft.ai/v3/search/web` | 完整的 HTTPS Web Search v3 端点。可以使用部署代理，但代理会收到已解析的密钥。 |
 | `language` | 未设置 | 可选的两位 ISO 639-1 界面语言。Web IQ 默认为 `en`。 |
 | `region` | 未设置 | 可选的两位国家或地区代码。Web IQ 默认为 `US`。 |
 | `maxLength` | `5000` | 每个结果的最大 passage 字符数；必须是正整数，最大 `500000`。 |
 | `safeSearch` | `strict` | `strict` 或 `off`。设为 `off` 时，Web IQ 仍会屏蔽非法内容。 |
 
-Host 拥有 Settings namespace `web-search-microsoft-webiq`；提供方选择单独位于 namespace `web`。浏览器卡片可以编辑全部非敏感提供方字段、存储替换密钥，并显式选择 Web IQ。每个所有者都会在写入后重新读取，因此被拒绝的操作会显示失败，而不会伪装成已接受。
+Host 拥有 Settings namespace `web-search-microsoft-webiq`；提供方选择单独位于 namespace `web`。卡片顶部是一个开关，用于为 `web_search` 选择 Web IQ；关闭后会清除用户层覆盖，使组合选定的提供方重新生效。其下，一个 API 配置分组包含接口地址与 API 密钥，一个参数配置分组包含语言、地区、段落长度和安全搜索，底部单一命令同时提交两个所有者：密钥走凭据 RPC，其余写入设置命名空间。凭据引用仍为 `cordis.yml` 中的部署选择，因此任何配置界面都不会要求用户填环境变量名。每个所有者都会在写入后重新读取，因此被拒绝的操作会显示失败，而不会伪装成已接受。
 
 ## REST 约定与映射
 
