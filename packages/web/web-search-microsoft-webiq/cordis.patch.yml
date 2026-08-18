@@ -1,0 +1,8 @@
+# Installable Web IQ profile layer. The package's dsh.bundle declaration makes
+# `dsh plugin --profile web add <package>` append this patch after the shipped
+# web profile bundles.
+- insert:
+    - id: web-search-microsoft-webiq
+      name: '@deepseek-ai/dsh-web-search-microsoft-webiq'
+      config:
+        apiKeyEnv: WEBIQ_API_KEY

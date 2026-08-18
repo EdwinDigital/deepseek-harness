@@ -19,6 +19,10 @@ import { ZH_BROWSER_LOCALE, saveFailureShot } from './support.ts'
 const SNAPSHOT_DIR = fileURLToPath(new URL('./snapshots/plugin-config', import.meta.url))
 const SECTION_EXPECTED = join(SNAPSHOT_DIR, 'section.expected.md')
 const MODE = webSnapshotMode()
+/** The Web IQ provider bundle, layered exactly where `dsh plugin add` appends it. */
+const WEBIQ_BUNDLE_PATCH = fileURLToPath(
+  new URL('../../../packages/web/web-search-microsoft-webiq/cordis.patch.yml', import.meta.url),
+)
 
 describe('web e2e: plugin configuration section', () => {
   let scaffold: WebScaffold
@@ -27,7 +31,7 @@ describe('web e2e: plugin configuration section', () => {
   let tripwire: ReturnType<typeof watchConsole>
 
   beforeAll(async () => {
-    scaffold = await launchWebScaffold({})
+    scaffold = await launchWebScaffold({ extraOverlayPath: WEBIQ_BUNDLE_PATCH })
     browser = await chromium.launch()
     // Chinese browser: the section asserts the localized copy the client
     // derives from it, as the rest of the settings surface does.
@@ -75,16 +79,37 @@ describe('web e2e: plugin configuration section', () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-plugin-config-cards'))
     const dialog = await openPlugins()
 
-    // Every card the shipped web composition exposes: the shell executor, the
-    // agent loop, and the DeepSeek search provider.
+    // Every card this deployment exposes: the shell executor, the agent loop,
+    // the shipped DeepSeek search row, and the installed Web IQ provider bundle.
     await dialog.getByText('终端', { exact: true }).waitFor({ timeout: 10_000 })
     expect(await dialog.getByText('Agent 循环', { exact: true }).count()).toBe(1)
     expect(await dialog.getByText('网页搜索', { exact: true }).count()).toBe(1)
+    expect(await dialog.getByText('Microsoft Web IQ', { exact: true }).count()).toBe(1)
     // Collapsed: a card's fields appear only once it is expanded.
     expect(await dialog.getByLabel('命令超时（毫秒）').count()).toBe(0)
 
     const snapshot = await captureStableAria(page, '[role="dialog"]', scaffold.workspaceCwd)
     await compareOrRefreshGolden(SECTION_EXPECTED, snapshot, MODE)
+    expect(tripwire.pageErrors).toEqual([])
+  }, 60_000)
+
+  it('keeps the Web IQ key write-only and selects it explicitly', async () => {
+    onTestFailed(() => saveFailureShot(page, 'web-e2e-plugin-config-webiq'))
+    const dialog = await openPlugins()
+    await dialog.getByRole('button', { name: '展开设置: Microsoft Web IQ' }).click()
+
+    const key = dialog.getByLabel('API Key', { exact: true })
+    await key.waitFor({ timeout: 10_000 })
+    expect(await key.inputValue()).toBe('')
+    await dialog.getByRole('button', { name: '设为默认', exact: true }).click()
+
+    await expect.poll(async () => await settingsDocument(), { timeout: 10_000 })
+      .toContain('web:\n  searchProvider: microsoft-webiq')
+    await expect.poll(
+      () => dialog.getByRole('button', { name: '默认搜索提供方', exact: true }).isDisabled(),
+      { timeout: 5_000 },
+    ).toBe(true)
+    expect(await key.inputValue()).toBe('')
     expect(tripwire.pageErrors).toEqual([])
   }, 60_000)
 
