@@ -394,9 +394,9 @@
         argumentsPreviewChars: 500
 
     # Every mode enables the stable model-facing web_search tool. DeepSeek is the
-    # only shipped provider; an installable provider bundle such as
-    # '@deepseek-ai/dsh-web-search-microsoft-webiq' registers alongside it and becomes
-    # active only after an explicit settings choice. Fetch stays disabled and no
+    # only shipped provider; an installable provider bundle registers alongside it
+    # and becomes active only after an explicit settings choice. Fetch stays
+    # disabled and no
     # fetch provider is mounted: that provider defers SSRF protection and the model
     # would choose the request target. Search gets 60s while the provider-neutral
     # tool default remains 30s.

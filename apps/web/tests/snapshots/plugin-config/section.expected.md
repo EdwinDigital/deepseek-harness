@@ -36,7 +36,3 @@
         - 'button "展开设置: 网页搜索"':
           - text: 网页搜索 DeepSeek 搜索提供方。
           - img
-      - listitem:
-        - 'button "展开设置: Microsoft Web IQ"':
-          - text: Microsoft Web IQ 通过 Microsoft Web IQ 提供网页检索依据。
-          - img

@@ -120,9 +120,10 @@ const DEFAULT_MAX_MESSAGES = 50
  * host-plane sections the plugin configuration page edits; a namespace absent
  * here answers `settings-not-exposed` even when its owner registered it, so
  * adding a section to that page is a decision made here rather than by the
- * registering plugin. Moving that declaration to `settings.register()`, so a
- * plugin can expose its own configuration without a change in this package,
- * is deferred work.
+ * registering plugin. `web-search-microsoft-webiq` is owned by an out-of-tree
+ * provider bundle and stays listed so an installed copy can serve its card.
+ * Moving that declaration to `settings.register()`, so a plugin can expose its
+ * own configuration without a change in this package, is deferred work.
  */
 const WEB_SETTINGS_NAMESPACES = [
   'agent-loop', 'shell', 'locale', 'permission', 'ui-conversation', 'ui-theme',
