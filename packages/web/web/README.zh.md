@@ -30,6 +30,8 @@
 
 选择绝不依赖注册、配置或 HMR（热模块替换）顺序。能力要么具有显式提供方 id（配置 `searchProvider`／`fetchProvider`，或由环境变量 `$DSH_WEB_SEARCH_PROVIDER`／`$DSH_WEB_FETCH_PROVIDER` 提供相同字段），要么在恰好只注册一个可用提供方时自动选择。`search()`／`fetch()` 会在执行时解析提供方：
 
+这些 id 由 settings 承载：本包拥有 settings 命名空间 `web`（`WEB_SETTINGS_NAMESPACE`），其用户层合并在组合 entry 之上，每次 `search()`／`fetch()` 在入口处读取合并后的 section。因此一个已提交的 `searchProvider` 支配下一次调用，无需重启，也不干扰进行中的调用；安装式的外部提供方正是凭此在显式选择时生效，而不是一安装就生效。未挂载 settings 服务的部署保留组合 entry；两层都未声明该字段时，仍由环境变量兜底。
+
 | 情况 | 执行 |
 |---|---|
 | 已配置 id 已注册且 `available()` | 运行该提供方 |

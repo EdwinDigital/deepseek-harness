@@ -30,6 +30,8 @@ Providers register **capabilities**, not tools. `dsh-tool-web` is the only owner
 
 Selection never depends on registration, config, or HMR order. A capability has an explicit provider id (config `searchProvider`/`fetchProvider`, or env `$DSH_WEB_SEARCH_PROVIDER`/`$DSH_WEB_FETCH_PROVIDER` feeding the same fields), or auto-selects when exactly one usable provider is registered. `search()`/`fetch()` resolve the provider at execution time:
 
+Those ids are settings-backed: this package owns settings namespace `web` (`WEB_SETTINGS_NAMESPACE`), whose user layer merges over the composition entry, and each `search()`/`fetch()` reads the merged section at its entry. A committed `searchProvider` therefore governs the next call without a restart and without disturbing a call in flight, which is how an installed out-of-tree provider becomes active on an explicit choice rather than on installation. A deployment with no settings service mounted keeps the composition entry, and the environment variables remain the fallback for a field neither layer states.
+
 | Situation | Execution |
 |---|---|
 | configured id registered and `available()` | runs that provider |
