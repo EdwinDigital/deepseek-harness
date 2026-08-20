@@ -389,7 +389,6 @@ const reference = [
     order: order + 5,
   }))),
   ...pairedPages(([
-    ['developing-a-plugin.md', '开发插件', 'Developing a plugin'],
     ['adding-a-package.md', '新增 Package', 'Adding a package'],
     ['adding-a-tool.md', '新增 Tool', 'Adding a tool'],
     ['adding-an-llm-adapter.md', '新增 LLM Adapter', 'Adding an LLM adapter'],
@@ -410,6 +409,14 @@ const reference = [
     sidebar: { root: 'zh-reference', en: 'en-reference' },
     section: { root: '开发手册', en: 'Cookbook' },
     order: 5,
+  }]),
+  ...pairedPages([{
+    source: 'docs/cookbook/developing-a-plugin.md',
+    route: 'reference/cookbook/developing-a-plugin.md',
+    label: { root: '开发插件', en: 'Developing a plugin' },
+    sidebar: { root: 'zh-reference', en: 'en-reference' },
+    section: { root: '开发手册', en: 'Cookbook' },
+    order: 6,
   }]),
 ]
 
