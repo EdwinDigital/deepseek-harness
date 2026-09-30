@@ -2,6 +2,7 @@ import { tmpdir } from 'node:os'
 import { readFileSync } from 'node:fs'
 import { Arch, Platform } from 'electron-builder'
 import { Packager } from 'app-builder-lib'
+import { MacPackager } from 'app-builder-lib/out/macPackager.js'
 import { describe, expect, it, vi } from 'vitest'
 
 const { execute } = vi.hoisted(() => ({ execute: vi.fn(async () => undefined) }))
@@ -75,6 +76,33 @@ describe('installer preparation preserves application dependencies', () => {
       DSH_DESKTOP_UNSIGNED: '1',
     }, 'win32', 'x64')
     expect(config.artifactName).toBe('deepseek-harness-${version}-${os}-${arch}-unsigned.${ext}')
+  })
+
+  it('packages unsigned macOS applications without certificate, notarization, or update publication', async () => {
+    const { createElectronBuilderConfig } = await import('../scripts/electron-builder-config.mjs')
+    const config = createElectronBuilderConfig({
+      DSH_DESKTOP_APP_ID: 'com.example.installer',
+      DSH_DESKTOP_AUTO_UPDATE_ENV: 'production',
+      DSH_DESKTOP_MANDATORY_UPDATE_PROD_ORIGIN: 'https://policy.example.com',
+      DSH_DESKTOP_TARGET_PLATFORM: 'darwin',
+      DSH_DESKTOP_TARGET_ARCH: 'arm64',
+      DSH_DESKTOP_UNSIGNED: '1',
+    }, 'darwin', 'arm64')
+    expect(config.mac).toMatchObject({
+      identity: null, forceCodeSigning: false, hardenedRuntime: false, notarize: false,
+    })
+    expect(config.dmg.sign).toBe(false)
+    expect(config.publish).toBeNull()
+    expect(config.directories.output).toMatch(/unsigned-artifacts$/u)
+    const packager = new Packager({ projectDir: tmpdir() })
+    Object.defineProperties(packager, {
+      config: { value: config },
+      metadata: { value: { name: 'unsigned-mac-test', version: '1.0.0', type: 'module' } },
+      appInfo: { value: { type: 'module' } },
+    })
+    await config.afterSign({ electronPlatformName: 'darwin', outDir: tmpdir(), appOutDir: tmpdir(),
+      arch: Arch.arm64, targets: [], packager: new MacPackager(packager) })
+    expect(config.artifactBuildCompleted({ file: 'unsigned.dmg' })).toBeUndefined()
   })
 
   it('packages every preload entry point the shell loads', async () => {

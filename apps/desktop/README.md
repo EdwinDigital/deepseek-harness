@@ -231,6 +231,10 @@ pnpm run package:desktop:win:x64
 
 The macOS arm64 command requires Apple Silicon. The macOS x64 command runs on Intel macOS or Apple Silicon with Rosetta. The Windows x64 command requires Windows x64. Linux is not a supported Desktop release target.
 
+For a local macOS application without Developer ID signing or notarization, run `pnpm run package:desktop:mac:arm64:dir --unsigned` (Intel: `pnpm run package:desktop:mac:x64:dir --unsigned`). The target dotenv still supplies the app ID, mandatory-update policy and optional npm mirror, but signing and notarization credentials are unnecessary. The complete `.app` is written under the target's `unsigned-artifacts/mac-arm64/` or `unsigned-artifacts/mac/` directory; copy it to Applications to install. This mode requires `--dir`, retains vendor-signed binaries, runs the assembled runtime checks, and creates neither updater publication metadata nor a release completion record. macOS may require explicit approval to open an unnotarized application.
+
+`DSH_DESKTOP_NPM_REGISTRY` accepts an HTTPS registry origin or a registry directory URL ending in `/`, such as `https://packagefeedproxy.microsoft.io/npm/`. Credentials, query parameters and fragments are rejected.
+
 Each target owns its packed package inputs, prepared runtime, package set, dsh tree, pnpm preparation state, unpacked application, update metadata, and final artifacts under `apps/desktop/.desktop-build/targets/<target>/`. The Electron archive cache remains shared under `.desktop-build/downloads` because every archive name includes its version, platform, and architecture and is verified before extraction. A target build never consumes another target's mutable preparation state.
 
 ### Runtime file selection

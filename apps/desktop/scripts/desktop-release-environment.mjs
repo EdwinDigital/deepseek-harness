@@ -40,19 +40,19 @@ function requireEnvironmentValue(env, name) {
 /**
  * Resolve the npm registry used to materialize the bundled runtime and its external dependencies.
  * @param {NodeJS.ProcessEnv} env - Packaging environment.
- * @returns {string} Registry origin; the public registry unless a local mirror is configured.
+ * @returns {string} HTTPS registry origin or directory URL; the public registry unless a mirror is configured.
  */
 export function resolveNpmRegistry(env) {
   const configured = env[NPM_REGISTRY_ENV]?.trim() ?? ''
   if (configured === '') return DEFAULT_NPM_REGISTRY
   let url
   try { url = new URL(configured) }
-  catch { throw new Error(`desktop release environment: ${NPM_REGISTRY_ENV} must be an HTTPS origin`) }
+  catch { throw new Error(`desktop release environment: ${NPM_REGISTRY_ENV} must be an HTTPS registry URL`) }
   if (url.protocol !== 'https:' || url.username !== '' || url.password !== '' || url.search !== '' || url.hash !== ''
-    || (url.pathname !== '/' && url.pathname !== '')) {
-    throw new Error(`desktop release environment: ${NPM_REGISTRY_ENV} must be an HTTPS origin without credentials, path, query, or fragment`)
+    || !url.pathname.endsWith('/')) {
+    throw new Error(`desktop release environment: ${NPM_REGISTRY_ENV} must be an HTTPS registry URL without credentials, query, or fragment; directory paths must end with /`)
   }
-  return url.origin
+  return url.pathname === '/' ? url.origin : url.href
 }
 
 /**

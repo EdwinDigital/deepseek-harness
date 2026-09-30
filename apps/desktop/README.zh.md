@@ -233,6 +233,10 @@ pnpm run package:desktop:win:x64
 
 macOS arm64 命令要求 Apple Silicon。macOS x64 命令可以在 Intel macOS 或带 Rosetta 的 Apple Silicon 上运行。Windows x64 命令要求 Windows x64。Linux 不是受支持的 Desktop 发布目标。
 
+要生成不使用 Developer ID 签名和公证的本地 macOS 应用，运行 `pnpm run package:desktop:mac:arm64:dir --unsigned`（Intel：`pnpm run package:desktop:mac:x64:dir --unsigned`）。目标 dotenv 仍需提供应用 ID、强制更新策略和可选 npm 镜像，但无需签名和公证凭据。完整 `.app` 写入目标的 `unsigned-artifacts/mac-arm64/` 或 `unsigned-artifacts/mac/` 目录；复制到“应用程序”即可安装。此模式要求 `--dir`，保留供应商已签名的二进制文件，运行组装后运行时检查，既不生成自动更新发布元数据，也不写发布完成记录。macOS 可能要求明确允许打开未经公证的应用。
+
+`DSH_DESKTOP_NPM_REGISTRY` 接受 HTTPS registry 源站或以 `/` 结尾的 registry 目录 URL，例如 `https://packagefeedproxy.microsoft.io/npm/`。它拒绝凭据、查询参数和片段。
+
 每个目标都在 `apps/desktop/.desktop-build/targets/<target>/` 下持有自己的打包输入、已准备运行时、包集合、dsh 依赖树、pnpm 准备状态、未打包应用、更新元数据和最终产物。Electron 归档缓存继续由 `.desktop-build/downloads` 共享，因为每个归档文件名都包含版本、平台和架构，并且在解包前经过验证。目标构建绝不读取其他目标的可变准备状态。
 
 ### 运行时文件筛选

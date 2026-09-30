@@ -73,14 +73,18 @@ describe('desktop package target', () => {
     expect(desktopElectronBuilderArguments(target, true)).toContain('--dir')
   })
 
-  it('accepts unsigned Windows artifacts and rejects other targets or preparation-only use', () => {
+  it('accepts unsigned Windows artifacts and macOS application directories', () => {
     expect(parseDesktopPackageInvocation(['win-x64', '--unsigned'], 'win32', 'x64').unsigned).toBe(true)
     expect(parseDesktopPackageInvocation(['win-x64'], 'win32', 'x64').unsigned).toBe(false)
     expect(parseDesktopPackageInvocation(['--unsigned', '--dir'], 'win32', 'x64')).toMatchObject({
       unsigned: true, directory: true,
     })
+    expect(parseDesktopPackageInvocation(['mac-arm64', '--unsigned', '--dir'], 'darwin', 'arm64'))
+      .toMatchObject({ unsigned: true, directory: true })
+    expect(parseDesktopPackageInvocation(['mac-x64', '--unsigned', '--dir'], 'darwin', 'arm64'))
+      .toMatchObject({ unsigned: true, directory: true })
     expect(() => parseDesktopPackageInvocation(['mac-arm64', '--unsigned'], 'darwin', 'arm64'))
-      .toThrow(/requires win-x64/u)
+      .toThrow(/macOS unsigned builds require --dir/u)
     expect(() => parseDesktopPackageInvocation(['--unsigned', '--prepare-only'], 'win32', 'x64'))
       .toThrow(/cannot use --prepare-only/u)
   })

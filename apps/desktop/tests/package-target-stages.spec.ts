@@ -130,6 +130,20 @@ it('checks macOS directory packages without writing a release record', async () 
   expect(writeFileSync).not.toHaveBeenCalled()
 })
 
+it('prepares and checks unsigned macOS applications without notarization or a release record', async () => {
+  const { run, stages } = supervisor()
+  await packageTarget(parseDesktopPackageInvocation(['mac-arm64', '--unsigned', '--dir'], 'darwin', 'arm64'), environment, run)
+  expect(stages.at(-1)).toBe('exec tsx scripts/smoke-packaged-runtime.ts --unsigned')
+  for (const call of run.run.mock.calls) {
+    if (call[0].startsWith('run prepare:') || call[0].includes('electron-builder')) {
+      expect(call[3].env.DSH_DESKTOP_UNSIGNED).toBe('1')
+    }
+  }
+  expect(withMacOSNotarizationProxy).not.toHaveBeenCalled()
+  expect(packageMacOSArtifacts).not.toHaveBeenCalled()
+  expect(writeFileSync).not.toHaveBeenCalled()
+})
+
 it.each([undefined, '2'])('passes macOS pack concurrency %s only to workspace packing and download routing only to download stages', async (concurrency) => {
   const { run } = supervisor()
   await packageTarget(parseDesktopPackageInvocation(['mac-arm64', '--prepare-only'], 'darwin', 'arm64'), {

@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { loadDesktopPackageEnvironment, validateDesktopPackageEnvironment } from '../scripts/desktop-package-environment.mjs'
 import { resolveWindowsPackageSettings } from '../scripts/windows-package-settings.mjs'
+import { resolveNpmRegistry } from '../scripts/desktop-release-environment.mjs'
 
 const WINDOWS = { platform: 'win32', arch: 'x64' } as const
 const MACOS = { platform: 'darwin', arch: 'arm64' } as const
@@ -144,6 +145,11 @@ describe('Desktop local packaging configuration', () => {
     expect(() => {
       validateDesktopPackageEnvironment({ ...release, DSH_DESKTOP_NPM_REGISTRY: 'https://registry.npmmirror.com/' }, WINDOWS, { unsigned: true })
     }).not.toThrow()
+    expect(() => {
+      validateDesktopPackageEnvironment({ ...release, DSH_DESKTOP_NPM_REGISTRY: 'https://packagefeedproxy.microsoft.io/npm/' }, MACOS, { unsigned: true })
+    }).not.toThrow()
+    expect(resolveNpmRegistry({ DSH_DESKTOP_NPM_REGISTRY: 'https://packagefeedproxy.microsoft.io/npm/' }))
+      .toBe('https://packagefeedproxy.microsoft.io/npm/')
     for (const value of ['http://registry.example.com/', 'https://registry.example.com/path', 'https://user:secret@registry.example.com/', 'not-a-url']) {
       expect(() => {
         validateDesktopPackageEnvironment({ ...release, DSH_DESKTOP_NPM_REGISTRY: value }, WINDOWS, { unsigned: true })
