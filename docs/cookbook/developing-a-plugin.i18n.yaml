@@ -1,6 +1,31 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for developing-a-plugin.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/cookbook/developing-a-plugin.md
-developing-a-plugin.md: 720d46de42a98130d711b722ec4ff41bb2f49d1f
-developing-a-plugin.zh.md: 200441215849fb1b44c3499b24936914d35d13e9
+/cookbook-developing-a-plugin:
+  en: 8c9ba8d50a8d3d00
+  zh: a9bd769b87d5dfcd
+/cookbook-developing-a-plugin/1-decide-where-the-plugin-lives:
+  en: 18656da81314f3dd
+  zh: ccc73594db73a81b
+/cookbook-developing-a-plugin/2-learn-the-runtime-model:
+  en: 40b2839552ae0b0a
+  zh: 478be31032289bb9
+/cookbook-developing-a-plugin/3-choose-the-plugin-shape:
+  en: fb19fd7101eca141
+  zh: f12527b01444c58a
+/cookbook-developing-a-plugin/4-follow-the-contract-guide-for-that-shape:
+  en: 8dcf19b9f526fa25
+  zh: 8302c3e09270b920
+/cookbook-developing-a-plugin/5-create-the-package:
+  en: 0bf06e73d25b56be
+  zh: e8992e780649b0b9
+/cookbook-developing-a-plugin/6-compose-it:
+  en: 07847c756d55d860
+  zh: b7b2661605a375d9
+/cookbook-developing-a-plugin/7-cover-the-behavior:
+  en: e5d21a760accc46f
+  zh: 4be9091bc73eac78
+/cookbook-developing-a-plugin/8-verify:
+  en: ff51ff06af0c00b5
+  zh: 1a17f7c610472afb

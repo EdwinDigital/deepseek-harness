@@ -8,7 +8,7 @@ English | [中文](2026-08-17-microsoft-webiq-search-provider.zh.md)
 
 The web capability has one model-facing `web_search` tool and a provider registry, but the shipped Web profile offers only the DeepSeek search provider. A user who wants Microsoft Web IQ must either replace the tool or compose an integration outside the normal provider, settings, and credentials lifecycles.
 
-A provider package also needs a product configuration path. An API key must never enter a settings response or browser bundle, and adding a second usable provider makes implicit selection ambiguous. The `dsh-web` service captured its configured provider at startup, so a browser setting could not select a different provider for the next search without restarting the application.
+A provider package also needs a product configuration path. An API key must never enter a settings response or browser bundle, and adding a second usable provider makes implicit selection ambiguous. A provider choice captured only at startup cannot let the user select a different provider for the next search without restarting the application.
 
 ## Decision
 
@@ -20,13 +20,13 @@ This repository keeps only the change an out-of-tree bundle cannot make for itse
 
 ## Live provider selection
 
-`@deepseek-ai/dsh-web` owns settings namespace `web` for `searchProvider` and `fetchProvider`, and reads the active section at execution time rather than at startup, falling back to the composition entry when no settings service is mounted. Existing environment variables remain fallbacks for absent fields. A committed `searchProvider` change therefore controls the next `web_search` call without interrupting a call already in flight and without making Settings a required service.
+`@deepseek-ai/dsh-web` declares `searchProvider` and `fetchProvider` as `.volatile()` Config fields. Settings derives their namespace from the profile entry id, which is `web` in the base profile. The service reads each reference at operation entry, with environment variables as fallbacks for absent values. A committed change controls the next call without remounting the service or interrupting work already in flight. Loader owns the references, so Settings is not a required service and detaching it does not revert the profile configuration.
 
 ## Browser exposure for out-of-tree namespaces
 
-Serving the card once required an entry in a hardcoded `WEB_SETTINGS_NAMESPACES` allowlist in `@deepseek-ai/dsh-apiproxy`, which made every third-party configuration surface cost an upstream change. That allowlist is retired: the proxy serves whatever `ctx.settings.describe()` returns, and `settings.plugin.item` is keyed by the namespace a card edits. An out-of-tree plugin now reaches the configuration page on its own registrations, so this repository holds nothing on the provider's behalf.
+Settings derives editable forms from active Loader entries and their volatile Config fields. An out-of-tree plugin serves its browser half from its root package row and registers its page through `ctx.configForms.whileServed` and `plugins.item`. The [live configuration guide](../../../../docs/cookbook/adding-a-settings-card.md) owns the form and browser-delivery interfaces; no provider-specific Host allowlist or central settings card is required.
 
-The keyed slot is what an external card registers against; a card still using the earlier `id`/`order` list form is not dispatched.
+External bundles must target the installed Harness version's configuration and client APIs. Their pages receive a form state and revisioned `form.mutate` operations from the page owner.
 
 ## Alternatives considered
 
@@ -46,12 +46,12 @@ The keyed slot is what an external card registers against; a card still using th
 
 ## Verification
 
-- The `dsh-web` focused suite passes 22 tests, including live provider selection and fallback when Settings detaches.
-- The base bundle passes its two composition tests with `deepseek-official` unchanged as the selected provider.
-- Installing the external bundle into a scratch `DSH_HOME` records it in `dsh.profile.bundles` and mounts its row in the composed configuration, with its card reachable in the Plugins settings page.
+- The `dsh-web` focused suite covers live search and fetch selection through the same volatile-reference update primitive used by Loader.
+- The base bundle explicitly selects `deepseek-official` for search and `http` for fetch.
+- The external provider repository owns installation and browser-page verification against its target Harness version; the in-tree suite does not verify an installed third-party bundle.
 
 ## Consequences
 
-The plugin-configuration Playwright scenario no longer covers an installed third-party card, because no in-tree package produces one. The cards it asserts are the shipped ones; third-party card behavior is verified in the provider's own repository.
+The plugin-configuration Playwright scenario covers shipped plugins. Third-party installation and card behavior need verification in the provider's own repository.
 
 One browser card writes two settings namespaces plus a credential, so those operations are not atomic. That constraint now lives with the provider, but any future in-tree card spanning two owners inherits it: read each owner after settlement, keep values the Host did not accept, and report the failed action rather than claiming success.

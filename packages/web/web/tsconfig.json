@@ -19,12 +19,6 @@
     },
     {
       "path": "../../llm/llm"
-    },
-    {
-      "path": "../../runtime-diagnostics/invariants"
-    },
-    {
-      "path": "../../settings/settings"
     }
   ]
 }

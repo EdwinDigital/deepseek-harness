@@ -1,6 +1,28 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-17-microsoft-webiq-search-provider.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-17-microsoft-webiq-search-provider.md
-2026-08-17-microsoft-webiq-search-provider.md: 5262aa836a709f7454a7d5ede718764191bb8684
-2026-08-17-microsoft-webiq-search-provider.zh.md: a19d9260905c7ffc2efbe86d1f4aec855e4b01c0
+/agent-note-microsoft-web-iq-search-provider:
+  en: 3a030588c04ea70d
+  zh: dd8804eac8b53b06
+/agent-note-microsoft-web-iq-search-provider/problem:
+  en: 629c5f80996f8888
+  zh: d35d4dcb170baf23
+/agent-note-microsoft-web-iq-search-provider/decision:
+  en: d4a29092a8363da1
+  zh: af8593836cac10bc
+/agent-note-microsoft-web-iq-search-provider/live-provider-selection:
+  en: 4dfee51adf91ebcc
+  zh: d7c520c1b426c1ac
+/agent-note-microsoft-web-iq-search-provider/browser-exposure-for-out-of-tree-namespaces:
+  en: a25de012d3fae2ef
+  zh: 2a10d852a3f4d469
+/agent-note-microsoft-web-iq-search-provider/alternatives-considered:
+  en: 35f6edc8bc69a624
+  zh: 62d987ffbb8eb2bf
+/agent-note-microsoft-web-iq-search-provider/verification:
+  en: 24e4723590ec913c
+  zh: abf67bcf67fceece
+/agent-note-microsoft-web-iq-search-provider/consequences:
+  en: b954e2dbeec719ee
+  zh: 8b95b1179c666ae2

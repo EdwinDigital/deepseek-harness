@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-18-plugin-development-route-cookbook.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/process/2026-08-18-plugin-development-route-cookbook.md
-2026-08-18-plugin-development-route-cookbook.md: e8b69437e8785afb582b2001d304e6bfa7006637
-2026-08-18-plugin-development-route-cookbook.zh.md: 1ad7bd97c97e5ac0faa5111b9292a3a9efcdb506
+/agent-note-the-plugin-development-route-lives-in-the-cookbook:
+  en: 91f57131acdb71a9
+  zh: 12b6a2a34c729bad
+/agent-note-the-plugin-development-route-lives-in-the-cookbook/problem:
+  en: 07eae5c9520e9ef0
+  zh: e043f95afb1d53a8
+/agent-note-the-plugin-development-route-lives-in-the-cookbook/decision:
+  en: a4aec37b737f9ce4
+  zh: 920fbe2ba1df1647
+/agent-note-the-plugin-development-route-lives-in-the-cookbook/alternatives-considered:
+  en: d382c73428221abe
+  zh: f623900e023e586c
+/agent-note-the-plugin-development-route-lives-in-the-cookbook/consequences:
+  en: 1f10942c8755a846
+  zh: 8e25a47c4693745e

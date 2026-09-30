@@ -38,14 +38,14 @@ That page leaves one decision to you: whether the capability needs replaceable i
 |---|---|
 | Model-callable tool | [adding a tool](adding-a-tool.md), the source of truth for tool definitions |
 | LLM adapter | [adding an LLM adapter](adding-an-llm-adapter.md) |
-| Web Client chat row | [adding a Conversation Node](adding-a-conversation-node.md) |
+| Web Client chat row | [Conversation subsystem](../subsystems/conversation.md) |
 | Hook, UI, protocol driver, or Service Provider | [extension patterns](extension-cookbook.md) and the owning [subsystem page](../subsystems/README.md) |
 
 ## 5. Create the package
 
-[Adding a package](adding-a-package.md) is the file-by-file checklist: directory layout, manifest invariants, root-configuration registration, topology, role naming, and README obligations. [packages/AGENTS.md](../../packages/AGENTS.md) carries the package rules the gates enforce alongside it, including the export form each plugin kind uses and the `./invariant` companion every package owns.
+[Adding a package](adding-a-package.md) is the file-by-file checklist: directory layout, manifest invariants, root-configuration registration, topology, role naming, and README obligations. [packages/AGENTS.md](../../packages/AGENTS.md) carries the package rules the gates enforce alongside it, including plugin export forms and when independent observations require an `./invariant` companion.
 
-Two shapes add a second contract. A plugin that contributes its own configuration layer declares `dsh.bundle.patch` and ships that patch file, which makes it installable; [packaging and installing a plugin](../user/develop/basic/publish.md) defines the layer order it lands in. A plugin with both a Host half and a browser half follows [packages/client/AGENTS.md](../../packages/client/AGENTS.md) for the `dsh.client` declaration, the `./client` export, and the shared bundling preset.
+Two shapes add a second contract. A plugin that contributes its own configuration layer declares `dsh.bundle.patch` and ships that patch file, which makes it installable; [packaging and installing a plugin](../user/develop/basic/publish.md) defines the layer order it lands in. A plugin with both a Host half and a browser half follows [browser delivery](adding-a-settings-card.md) for the `dsh.client` declaration, the `./client` export, and the build format an out-of-tree package must provide.
 
 ## 6. Compose it
 
@@ -53,8 +53,8 @@ A plugin only runs once a configuration entry mounts it. [Plugin configuration](
 
 ## 7. Cover the behavior
 
-The [testing policy](../testing.md) owns what a plugin must prove. Read it before writing tests: a product-visible plugin needs a real-composition test rather than a hand-built context, and a model- or user-visible behavior change needs a keyless snapshot through a runnable example in the same change.
+The [testing policy](../testing.md) owns what a plugin must prove. Read it before writing tests: a product-visible plugin needs a real-composition test rather than a hand-built context, and a non-trivial model- or user-visible behavior change needs a keyless recorded-session snapshot through a shipped profile in the same change.
 
 ## 8. Verify
 
-Run the package checklist's [verification commands](adding-a-package.md#5-verify), then the checks your shape adds: the snapshot suite for transcript-visible output, the web suite for a browser half, and the opt-in real-API suite for an external provider. [Pre-push checks](../../.agents/skills/dsh-pre-push-checks/SKILL.md) selects the smallest set that covers the diff.
+Run the package checklist's [verification commands](adding-a-package.md), then the checks your shape adds: the snapshot suite for transcript-visible output, the web suite for a browser half, and the opt-in real-API suite for an external provider. [Pre-push checks](../../.agents/skills/dsh-pre-push-checks/SKILL.md) selects the smallest set that covers the diff.

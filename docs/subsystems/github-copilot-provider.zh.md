@@ -2,7 +2,7 @@
 
 [English](github-copilot-provider.md) | 中文
 
-`github-copilot` 路由使用 pi-ai 的 GitHub Device OAuth 实现，以及 Harness 的 LLM、凭据、Host API 和 Web 客户端插件。本文说明这个组装后提供方的职责与生命周期。通用认证类型仍属于 [LLM 子系统](llm-streaming.md)，将提供方协议归属适配器的理由记录在[提供方 OAuth Agent Note](../../.agents/notes/implemented/feature/2026-08-14-llm-provider-oauth.md)中。
+`github-copilot` 路由使用 pi-ai 的 GitHub Device OAuth 实现。[LLM 子系统](llm-streaming.zh.md)负责模型路由，[凭据子系统](credentials.zh.md)负责凭据记录与授权流程。本文说明这些插件如何共同支持该提供方。
 
 ## 插件职责
 
@@ -10,52 +10,52 @@
 
 | 插件 | 职责 |
 |---|---|
-| [`dsh-llm`](../../packages/llm/llm/README.md) | 在 `LlmAdapter` 上声明提供方中立的认证方式、状态、交互回调、登录和登出；`LlmRuntime` 将调用路由至为提供方注册的适配器。 |
-| [`dsh-llm-pi-ai`](../../packages/llm/llm-pi-ai/README.md) | 在 `ctx.llm` 上注册 `github-copilot`，将登录、刷新、请求认证和登出委托给 pi-ai，并将 pi-ai 凭据接入 Harness 存储。 |
-| [`dsh-credentials`](../../packages/credentials/credentials/README.md) | 通过 `ctx.credentials` 提供活动的 secret store（机密存储）；它持久化不透明值，不了解 GitHub 或 pi-ai 协议。 |
-| [`dsh-host-apiproxy`](../../packages/host/apiproxy/README.md) | 通过类型化 unary RPC 公开通用 LLM 认证操作，并在 Host 中保存实时提示、取消状态和有界非机密进度。 |
-| [`dsh-ui-settings-models`](../../packages/client/ui-settings-models/README.md) | 渲染提供方中立的操作、Device OAuth 代码和验证 URL、提示、取消、完成状态及登出。 |
+| [`dsh-llm`](../../packages/llm/llm/README.zh.md) | 将模型请求路由至已注册的适配器。 |
+| [`dsh-llm-pi-ai`](../../packages/llm/llm-pi-ai/README.zh.md) | 注册模型路由与授权流程，将 GitHub 协议委托给 pi-ai，并适配其凭据存储。 |
+| [`dsh-credentials`](../../packages/credentials/credentials/README.zh.md) | 持久化带作用域的凭据记录，并负责记录更新的串行化。 |
+| [`dsh-authorization`](../../packages/credentials/authorization/README.zh.md) | 注册登录方式，将通知与提示路由到调用方，并在报告成功前确认凭据已提交。 |
+| [`dsh-client-ui-settings-models`](../../packages/client/ui-settings-models/README.zh.md) | 配置提供方路由和模型目录，并为额外的提供方控件提供扩展 slot。 |
 
-该拆分符合 Harness capability（能力）模型：`dsh-llm` 是 Service Definition（服务定义），`dsh-llm-pi-ai` 是 Service Provider（服务提供者），ApiProxy 和模型设置是 Consumers（消费者）。提供方可通过 `ctx.llm` 替换；注册使用 Cordis effect，并随插件卸载。`dsh-agent-loop` 中没有 GitHub 专用分支。
+适配器负责提供方协议，授权独立于模型执行。注册使用 Cordis effect，并随插件卸载。`dsh-agent-loop` 中没有 GitHub 专用分支。
 
 ## 登录流程
 
-1. 模型设置为已注册路由和 `oauth` 方式启动 `llm.startAuth`。
-2. ApiProxy 创建或复用该路由正在运行的操作，并使用 Host 持有的通知、提示和取消回调调用 `ctx.llm.providerLogin()`。
-3. `LlmRuntime` 验证活动适配器声明了该方式，再分派至 `PiAiAdapter.login()`。
-4. pi-ai 发出 GitHub 验证 URL 和用户代码，处理可能的提示，交换已批准的设备代码，并通过 `HarnessCredentialStore` 写入其规范 OAuth 凭据。
-5. 操作运行期间，模型设置持续轮询。成功的终止状态会触发一次新的非机密认证状态读取，并使该路由可用。
+1. pi-ai 插件注册 `llm-pi-ai/github-copilot` 授权流程，不依赖是否已经配置模型路由。
+2. 调用方通过 `ctx.authorization.begin()` 启动流程，并传入 `oauth` 方式及其自身的交互回调。
+3. 授权服务校验方式，并限制每个凭据键同时只有一个尝试。流程携带该尝试的取消信号执行 pi-ai 登录。
+4. pi-ai 发出 GitHub 验证 URL 和用户代码，处理提示，交换已批准的设备代码，并通过 `credentialStoreFrom()` 写入凭据。
+5. 授权服务只在观察到本次尝试中的凭据提交后报告 `authorized`。已配置的模型路由在后续请求中读取该存储凭据。
 
-浏览器会收到操作 id、状态、有界通知以及至多一个待处理提示。它不会收到 access token、refresh token 或序列化凭据。保留的操作使重新加载的页面可在 Host 进程仍存活时恢复运行中或已终止的流程；操作不会跨 Host 重启保留。
+调用方接收通知、提示和授权结果，而不是已存储的 OAuth 授权数据。交互属于发起它的请求。尝试不可恢复：登录期间重新加载浏览器会放弃该尝试，用户必须重新开始。
 
 ## 凭据存储与刷新
 
-`HarnessCredentialStore` 从每个提供方路由派生一个确定性 `CredentialRef`，并通过活动的 `ctx.credentials` 提供方存储带版本的 JSON 文档。设置中包含提供方 profile，以及 API key 路由的凭据引用，但绝不包含 GitHub OAuth token。
+适配器在 `llm-pi-ai/github-copilot` 处将 OAuth 授权数据保存为不透明的 `grant` 记录。提供方配置包含路由设置和可选的凭据引用，不包含 OAuth token。登录约定由 [pi-ai 包](../../packages/llm/llm-pi-ai/README.zh.md)定义。
 
-每个 pi-ai `Models` 快照共享该存储。pi-ai 在提供方请求前读取凭据、检查过期状态、按需刷新，并在分派请求前持久化凭据轮换。已存储的 OAuth 凭据在登出前始终是权威认证来源；刷新失败不会回退到环境中的 API key。
+每个 pi-ai 模型集合都使用同一个 Harness 凭据适配器。路由显式指定的 `apiKeyEnv` 覆盖值优先于已存储的登录状态。没有该覆盖值时，pi-ai 按需读取和刷新已存储的授权数据。
 
-`modify()` 和 `delete()` 在单个 Harness 进程内按提供方路由串行执行操作。共享的底层凭据提供方仍负责跨进程锁定。若它不提供该能力，两个 Harness 进程可能并发刷新，后续读取会观察最后完成的写入。
+凭据刷新在 `ctx.credentials.modifyRecord()` 内执行，本地提供方在整个更新期间持有跨进程锁。[凭据存储文档](../../packages/credentials/credentials/README.zh.md)定义持久化和锁定的责任。
 
 ## 登出与失败行为
 
-`llm.logout` 会取消正在运行的登录、拒绝所有待处理提示、将凭据删除委托给适配器，并移除保留的操作。后续请求需要重新登录，除非该路由另有独立配置的认证方式。
+`ctx.authorization.cancel(key)` 撤回活动的尝试。登出通过 `ctx.credentials.deleteRecord(key)` 完成：它删除本地授权记录，但不会在 GitHub 端撤销授权。独立配置的凭据与该记录相互分离。
 
-未知路由和不受支持的方式会在交互开始前失败。设备流程拒绝、过期、取消、网络失败、存储失败、损坏的已存储 JSON 和刷新失败都会作为提供方或凭据错误呈现，但不会返回 token。损坏的文档仍可通过登出删除。
+未知流程、不支持的方式和并发尝试会在新交互开始前失败。拒绝提示或撤回请求会以 `cancelled` 结束；网络、存储和提供方故障仍作为错误返回。授权服务会拒绝未提交凭据就返回的流程。
 
-ApiProxy 最多保留 32 条非机密通知，并且每个提供方只保留一个操作。启动新流程会替换该提供方已终止的操作，从而使 Host 内存以提供方数量为界。
+取消尝试和删除本地记录是两个独立操作。它们的生命周期规则由[授权包](../../packages/credentials/authorization/README.zh.md)定义。
 
 ## 架构评估
 
 该提供方符合仓库的插件架构：
 
-- 提供方认证扩展已注册的 `ctx.llm` 适配器，不引入 GitHub 服务，也不修改循环；
-- GitHub 协议和凭据序列化仍由提供方持有，`ctx.credentials` 持有机密持久化；
-- Host RPC 和 Web 设置只依赖提供方中立的 LLM 认证类型；
-- OAuth 交互对模型不可见，因此不新增 session event；模型请求沿用既有的已记录提供方和模型 provenance（来源）信息；
-- API key 适配器继承空认证方式，并保持既有行为。
+- 模型执行保留在 `ctx.llm` 上，交互式凭据获取使用 `ctx.authorization`；
+- GitHub 协议和授权数据序列化仍由提供方持有，`ctx.credentials` 负责持久化和锁定；
+- 授权调用方呈现提供方无关的通知与提示，不实现 GitHub 协议；
+- OAuth 交互对模型不可见，不新增会话事件；
+- API key 引用、已存储授权数据和提供方原生发现遵循适配器定义的优先级。
 
-明确保留的限制是进程内刷新串行化和进程内认证操作。它们不削弱插件替换能力，也不暴露机密，但多个进程共享同一凭据存储的部署需要底层提供方提供更强的锁定。
+尝试仅存在于当前进程中，不能恢复。本地登出不会撤销签发方的访问授权。这些限制属于共享授权行为，不是 GitHub 专用例外。
 
 ## 验证归属
 
-存储解析、版本控制、串行化、删除和并发修改由 [`credential-store.spec.ts`](../../packages/llm/llm-pi-ai/tests/credential-store.spec.ts) 验证。适配器注册和提供方认证路由由 `dsh-llm` 与 `dsh-llm-pi-ai` 包测试验证。操作恢复、提示、取消、有界事件、登出和 wire validation（传输验证）由 ApiProxy 测试验证。模型设置测试覆盖 Device OAuth 渲染、轮询、页面恢复、提示响应、取消和登出。组装后的 Web 快照证明真实 profile 无需实时凭据即可公开提供方流程。
+pi-ai 适配器、授权服务和凭据提供方分别维护协议适配、交互取消、提交确认、持久化和刷新锁定的测试。真实 GitHub 登录还需要有权限的账号；无密钥测试不能证明某个账号具有 Copilot 访问权限。

@@ -6,9 +6,8 @@
  * @module @deepseek-ai/dsh-web
  */
 
-import { Context, Service } from '@deepseek-ai/cordis'
+import { Context, Service, type Volatile } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
 import type {
   WebFetchProvider,
   WebFetchRequest,
@@ -39,9 +38,6 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
-/** Settings namespace carrying live web-provider selection. */
-export const WEB_SETTINGS_NAMESPACE = settingsNamespace('web')
-
 /** Selection inputs for execution-time provider resolution. */
 interface Selection<P> {
   /** The configured provider id for this capability, if any. */
@@ -57,10 +53,10 @@ interface Selection<P> {
  * must feed these same fields rather than introduce a hidden priority chain.
  */
 export interface WebRuntimeConfig {
-  /** Explicit search provider id. Omitted = auto-select when exactly one usable. */
-  readonly searchProvider?: string
-  /** Explicit fetch provider id. Omitted = auto-select when exactly one usable. */
-  readonly fetchProvider?: string
+  /** Live search provider id. Undefined = auto-select when exactly one usable. */
+  readonly searchProvider: Volatile<string | undefined>
+  /** Live fetch provider id. Undefined = auto-select when exactly one usable. */
+  readonly fetchProvider: Volatile<string | undefined>
 }
 
 /**
@@ -81,9 +77,9 @@ export class WebRuntime extends Service {
    * `$DSH_WEB_SEARCH_PROVIDER` / `$DSH_WEB_FETCH_PROVIDER` are equivalent to
    * `searchProvider` / `fetchProvider` and are NOT a hidden priority chain.
    */
-  static Config: z<WebRuntimeConfig> = z.object({
-    searchProvider: z.string(),
-    fetchProvider: z.string(),
+  static Config = z.object({
+    searchProvider: z.string().volatile(),
+    fetchProvider: z.string().volatile(),
   })
 
   private searchProviders = new Map<string, WebSearchProvider>()
@@ -91,20 +87,12 @@ export class WebRuntime extends Service {
   private readonly searchProviderId: () => string | undefined
   private readonly fetchProviderId: () => string | undefined
 
-  constructor(ctx: Context, config: WebRuntimeConfig = {}) {
+  constructor(ctx: Context, config: WebRuntimeConfig) {
     super(ctx, 'web')
     const environmentSearchProvider = process.env.DSH_WEB_SEARCH_PROVIDER
     const environmentFetchProvider = process.env.DSH_WEB_FETCH_PROVIDER
-    let source: () => WebRuntimeConfig = () => config
-    this.searchProviderId = () => source().searchProvider ?? environmentSearchProvider
-    this.fetchProviderId = () => source().fetchProvider ?? environmentFetchProvider
-    installSettingsSection(ctx, WEB_SETTINGS_NAMESPACE, WebRuntime.Config, config, {
-      setSource: (current) => {
-        source = current
-      },
-      // Provider selection reads the source at each operation entry.
-      onChange: () => {},
-    })
+    this.searchProviderId = () => config.searchProvider.get() ?? environmentSearchProvider
+    this.fetchProviderId = () => config.fetchProvider.get() ?? environmentFetchProvider
   }
 
   /**

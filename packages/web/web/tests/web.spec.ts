@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { SettingsProvider, type SettingsNamespace } from '@deepseek-ai/dsh-settings'
+import { createVolatile, updateVolatile } from '@deepseek-ai/cosmokit'
 import WebRuntime, {
-  WEB_SETTINGS_NAMESPACE,
   WebError,
   type WebFetchProvider,
   type WebFetchResult,
@@ -10,24 +9,6 @@ import WebRuntime, {
   type WebSearchRequest,
   type WebSearchResult,
 } from '@deepseek-ai/dsh-web'
-
-/** Writable in-memory settings provider for live-selection tests. */
-class MemorySettings extends SettingsProvider {
-  private contents: Record<string, unknown> = {}
-
-  get writable(): boolean {
-    return true
-  }
-
-  protected load(): Promise<Record<string, unknown>> {
-    return Promise.resolve(structuredClone(this.contents))
-  }
-
-  protected persist(ns: SettingsNamespace, section: Record<string, unknown>): Promise<void> {
-    this.contents[ns] = structuredClone(section)
-    return Promise.resolve()
-  }
-}
 
 /** A scripted search provider for contract tests. */
 function makeSearchProvider(
@@ -54,7 +35,7 @@ function fetchResult(marker: string): WebFetchResult {
 }
 
 /** Mount a WebRuntime on a fresh root context with the given config. */
-async function mountWeb(config: ConstructorParameters<typeof WebRuntime>[1] = {}): Promise<{ ctx: Context; web: WebRuntime }> {
+async function mountWeb(config: Parameters<typeof WebRuntime.Config>[0] = {}): Promise<{ ctx: Context; web: WebRuntime }> {
   const ctx = new Context()
   await ctx.plugin(WebRuntime, config)
   return { ctx, web: ctx.web }
@@ -133,31 +114,30 @@ describe('WebRuntime execution resolution', () => {
     await expect(web.search({ query: 'q' })).resolves.toMatchObject({ content: 'perplexity' })
   })
 
-  it('uses a committed search-provider setting on the next call', async () => {
+  it('uses a live search-provider change on the next call', async () => {
     const ctx = new Context()
-    await ctx.plugin(MemorySettings).await()
-    await ctx.plugin(WebRuntime, { searchProvider: 'exa' }).await()
-    ctx.web.registerSearchProvider(makeSearchProvider('exa', available, () => Promise.resolve(searchResult('exa'))))
-    ctx.web.registerSearchProvider(makeSearchProvider('perplexity', available, () => Promise.resolve(searchResult('perplexity'))))
+    const fiber = ctx.plugin(WebRuntime, { searchProvider: 'exa' })
+    await fiber.await()
+    const web = ctx.web
+    web.registerSearchProvider(makeSearchProvider('exa', available, () => Promise.resolve(searchResult('exa'))))
+    web.registerSearchProvider(makeSearchProvider('perplexity', available, () => Promise.resolve(searchResult('perplexity'))))
 
-    await expect(ctx.web.search({ query: 'q' })).resolves.toMatchObject({ content: 'exa' })
-    await ctx.settings.update(WEB_SETTINGS_NAMESPACE, { searchProvider: 'perplexity' })
-    await expect(ctx.web.search({ query: 'q' })).resolves.toMatchObject({ content: 'perplexity' })
+    await expect(web.search({ query: 'q' })).resolves.toMatchObject({ content: 'exa' })
+    updateVolatile(fiber.config.searchProvider, createVolatile('perplexity'))
+    await expect(web.search({ query: 'q' })).resolves.toMatchObject({ content: 'perplexity' })
   })
 
-  it('restores the composition selection when the settings provider detaches', async () => {
+  it('uses a live fetch-provider change on the next call', async () => {
     const ctx = new Context()
-    const settingsFiber = ctx.plugin(MemorySettings)
-    await settingsFiber.await()
-    await ctx.plugin(WebRuntime, { searchProvider: 'exa' }).await()
-    ctx.web.registerSearchProvider(makeSearchProvider('exa', available, () => Promise.resolve(searchResult('exa'))))
-    ctx.web.registerSearchProvider(makeSearchProvider('perplexity', available, () => Promise.resolve(searchResult('perplexity'))))
-    await ctx.settings.update(WEB_SETTINGS_NAMESPACE, { searchProvider: 'perplexity' })
-    await expect(ctx.web.search({ query: 'q' })).resolves.toMatchObject({ content: 'perplexity' })
+    const fiber = ctx.plugin(WebRuntime, { fetchProvider: 'http' })
+    await fiber.await()
+    const web = ctx.web
+    web.registerFetchProvider(makeFetchProvider('http', available, fetchResult('http')))
+    web.registerFetchProvider(makeFetchProvider('browser', available, fetchResult('browser')))
 
-    await settingsFiber.dispose()
-
-    await expect(ctx.web.search({ query: 'q' })).resolves.toMatchObject({ content: 'exa' })
+    await expect(web.fetch({ url: 'https://example.com' })).resolves.toMatchObject({ body: { content: 'http' } })
+    updateVolatile(fiber.config.fetchProvider, createVolatile('browser'))
+    await expect(web.fetch({ url: 'https://example.com' })).resolves.toMatchObject({ body: { content: 'browser' } })
   })
 
   it('ignores unusable providers when auto-selecting', async () => {

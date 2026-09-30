@@ -1,12 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import LlmRuntime, { LlmAdapter, LlmError } from '@deepseek-ai/dsh-llm'
-import type {
-  GenerateOptions,
-  LlmAuthInteraction,
-  LlmConfigurableProvider,
-  StreamChunk,
-} from '@deepseek-ai/dsh-llm'
+import type { GenerateOptions, LlmConfigurableProvider, StreamChunk } from '@deepseek-ai/dsh-llm'
 
 class NoopAdapter extends LlmAdapter {
 
@@ -30,55 +25,6 @@ function entry(overrides: Partial<LlmConfigurableProvider> = {}): LlmConfigurabl
     ...overrides,
   }
 }
-
-describe('provider authentication', () => {
-  it('delegates optional authentication through the route-owning adapter', async () => {
-    const ctx = await setup()
-    const calls: string[] = []
-    const events: string[] = []
-    const adapter = new class extends NoopAdapter {
-      override authMethods(): readonly ['oauth'] {
-        return ['oauth']
-      }
-
-      override authStatus(): Promise<{ type: 'oauth'; source: string }> {
-        return Promise.resolve({ type: 'oauth', source: 'OAuth' })
-      }
-
-      override login(provider: string, type: 'oauth', interaction: LlmAuthInteraction): Promise<void> {
-        calls.push(`${provider}:${type}`)
-        interaction.notify({ type: 'progress', message: 'signed in' })
-        return Promise.resolve()
-      }
-
-      override logout(provider: string): Promise<void> {
-        calls.push(`${provider}:logout`)
-        return Promise.resolve()
-      }
-    }()
-    ctx.llm.registerAdapter(['github-copilot'], adapter)
-
-    expect(ctx.llm.providerAuthMethods('github-copilot')).toEqual(['oauth'])
-    await expect(ctx.llm.providerAuthStatus('github-copilot')).resolves.toEqual({ type: 'oauth', source: 'OAuth' })
-    await expect(ctx.llm.providerLogin('github-copilot', 'oauth', {
-      prompt: () => Promise.resolve(''),
-      notify: event => events.push(event.type),
-    })).resolves.toBeUndefined()
-    await expect(ctx.llm.providerLogout('github-copilot')).resolves.toBeUndefined()
-    expect(calls).toEqual(['github-copilot:oauth', 'github-copilot:logout'])
-    expect(events).toEqual(['progress'])
-  })
-
-  it('rejects login through an adapter that does not advertise the method', async () => {
-    const ctx = await setup()
-    ctx.llm.registerAdapter(['plain'], new NoopAdapter())
-
-    await expect(ctx.llm.providerLogin('plain', 'oauth', {
-      prompt: () => Promise.resolve(''),
-      notify: () => {},
-    })).rejects.toMatchObject({ code: 'UNSUPPORTED_AUTH' })
-  })
-})
 
 describe('llm/adapters-updated', () => {
   it('fires at both adapter registration commit points with the registry already readable', async () => {
@@ -178,12 +124,10 @@ describe('configurable-provider directory', () => {
 
   it('detaches stored entries from caller-owned objects', async () => {
     const ctx = await setup()
-    const source = entry({ authMethods: ['oauth'] })
+    const source = entry()
     ctx.llm.registerConfigurableProviders([source])
     source.displayName = 'mutated'
-    ;(source.authMethods as string[]).push('mutated')
     expect(ctx.llm.listConfigurableProviders()[0]!.displayName).toBe('OpenAI')
-    expect(ctx.llm.listConfigurableProviders()[0]!.authMethods).toEqual(['oauth'])
   })
 
   it('withdraws every entry when the registration disposes', async () => {
@@ -291,19 +235,67 @@ describe('model discovery registry', () => {
       .resolves.toEqual([])
   })
 
-  it('normalizes what an interrogation returns without inventing capacities', async () => {
+  it('preserves discovered input types without inventing missing metadata', async () => {
     const ctx = await setup()
     ctx.llm.registerModelDiscovery('llm-example', () => Promise.resolve([
-      { id: 'keep', name: 'Keep', contextWindow: 1024, maxTokens: 256 },
+      { id: 'keep', name: 'Keep', contextWindow: 1024, maxTokens: 256, inputModalities: ['text', 'image'] },
       { id: '' },
       { id: 'keep' },
       { id: 'bare' },
     ] as never))
 
     expect(await ctx.llm.discoverModels('llm-example', { baseURL: 'https://gateway.example/v1' })).toEqual([
+      { id: 'keep', name: 'Keep', contextWindow: 1024, maxTokens: 256, inputModalities: ['text', 'image'] },
+      { id: 'bare' },
+    ])
+  })
+
+  it('carries cancellation into Remote discovery and maps provider failures', async () => {
+    const ctx = await setup()
+    const discover = vi.fn()
+      .mockResolvedValueOnce([
+        { id: 'keep', name: 'Keep', contextWindow: 1024, maxTokens: 256 },
+        { id: '' },
+        { id: 'keep' },
+        { id: 'bare' },
+      ])
+      .mockRejectedValueOnce(new Error('endpoint offline'))
+      .mockRejectedValueOnce('provider refused')
+    ctx.llm.registerModelDiscovery('llm-example', discover)
+    const signal = new AbortController().signal
+
+    await expect(ctx.llm.remoteDiscoverModels(
+      'llm-example',
+      { baseURL: 'https://gateway.example/v1' },
+      signal,
+    )).resolves.toEqual([
       { id: 'keep', name: 'Keep', contextWindow: 1024, maxTokens: 256 },
       { id: 'bare' },
     ])
+    expect(discover).toHaveBeenNthCalledWith(
+      1,
+      { baseURL: 'https://gateway.example/v1' },
+      signal,
+    )
+
+    await expect(ctx.llm.remoteDiscoverModels(
+      'llm-example',
+      { baseURL: 'https://gateway.example/v1' },
+      signal,
+    )).rejects.toMatchObject({
+      code: 'llm/model-discovery-rejected',
+      message: 'endpoint offline',
+      details: { settingsNs: 'llm-example', baseURL: 'https://gateway.example/v1' },
+    })
+    await expect(ctx.llm.remoteDiscoverModels(
+      'llm-example',
+      { provider: 'known-route' },
+      signal,
+    )).rejects.toMatchObject({
+      code: 'llm/model-discovery-rejected',
+      message: 'provider refused',
+      details: { settingsNs: 'llm-example' },
+    })
   })
 
   it('refuses a namespace nothing serves and a draft with no endpoint', async () => {
@@ -320,5 +312,29 @@ describe('model discovery registry', () => {
       .rejects.toMatchObject({ code: 'INVALID_DISCOVERY' })
     // Naming a route alone is enough: the adapter may know it without an endpoint.
     await expect(ctx.llm.discoverModels('llm-example', { provider: 'known-route' })).resolves.toEqual([])
+  })
+})
+
+describe('imageRequestPricing resolution', () => {
+  it('resolves the owning adapter declaration and degrades everywhere else to undefined', async () => {
+    const ctx = await setup()
+    const pricing = { priceImages: () => [] }
+    class PricingAdapter extends NoopAdapter {
+      override imageRequestPricing(provider: string, model: string): typeof pricing | undefined {
+        return provider === 'a' && model === 'vision' ? pricing : undefined
+      }
+    }
+    const dispose = ctx.llm.registerAdapter(['a'], new PricingAdapter())
+    ctx.llm.registerAdapter(['plain'], new NoopAdapter())
+
+    expect(ctx.llm.imageRequestPricing('a', 'vision')).toBe(pricing)
+    expect(ctx.llm.imageRequestPricing('a', 'other')).toBeUndefined()
+    // The base adapter declares none.
+    expect(ctx.llm.imageRequestPricing('plain', 'vision')).toBeUndefined()
+    // Unregistered providers degrade instead of throwing: callers price
+    // durable history whose route may no longer be mounted.
+    expect(ctx.llm.imageRequestPricing('missing', 'vision')).toBeUndefined()
+    dispose()
+    expect(ctx.llm.imageRequestPricing('a', 'vision')).toBeUndefined()
   })
 })

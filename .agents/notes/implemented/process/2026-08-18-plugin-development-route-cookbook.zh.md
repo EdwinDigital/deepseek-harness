@@ -6,13 +6,13 @@ Status: implemented
 
 ## 问题
 
-插件编写指引分散在三套文档中，各自面向不同读者、运行在不同运行时：[Cordis 框架教程](../../../../docs/cordis-tutorial/index.md)在裸启动器上讲框架，[user/develop](../../../../docs/user/develop/basic/index.md)讲由 Web UI 驱动的 harness 插件，[实操手册](../../../../docs/cookbook/adding-a-package.md)则收录贡献者清单。每一套都声明了自己的范围，并与相邻文档两两互链，但没有任何文档把它们排成一条路径。
+插件编写指引分散在三套文档中，各自面向不同读者、运行在不同运行时：[Cordis 框架教程](../../../../docs/cordis-tutorial/index.zh.md)在裸启动器上讲框架，[user/develop](../../../../docs/user/develop/basic/index.zh.md)讲由 Web UI 驱动的 harness 插件，[实操手册](../../../../docs/cookbook/adding-a-package.zh.md)则收录贡献者清单。每一套都声明了自己的范围，并与相邻文档两两互链，但没有任何文档把它们排成一条路径。
 
 有两个决定后续一切的决策，在任何地方都没有被当作决策写出来：插件放在本仓库内还是仓库外，以及采用哪种插件形态。隐式做出第一个选择的作者，往往要等到包已经建好、被门禁拦下，才发现它附带的义务——被强制的包作用域、workspace 门禁和发布家族。
 
 ## 决策
 
-[docs/cookbook/developing-a-plugin.md](../../../../docs/cookbook/developing-a-plugin.md) 是从想法到合入或安装一个插件的有序路径。它是一份路由文档：每一步都指明规则的归属文档，并给出通向它的决策，而不复述这些文档的任何内容。[分层归属表](../../../../docs/AGENTS.md)保证每个事实只有一个归属，因此本页只承载顺序，以及步骤之间的分叉。
+[docs/cookbook/developing-a-plugin.zh.md](../../../../docs/cookbook/developing-a-plugin.zh.md) 是从想法到合入或安装一个插件的有序路径。它是一份路由文档：每一步都指明规则的归属文档，并给出通向它的决策，而不复述这些文档的任何内容。[分层归属表](../../../../docs/AGENTS.md)保证每个事实只有一个归属，因此本页只承载顺序，以及步骤之间的分叉。
 
 它拥有其他文档都未言明的两个分叉。其一是位置：树内包必须使用发布家族发现与 npm 发布基线所要求的 `@deepseek-ai/dsh-` 作用域，而树外组合包由 `dsh plugin add` 安装、只受组合包约定约束。其二是形态目录留下的 seam 问题：这项能力是否需要可替换的实现，这决定了是否采用三角色拆分。
 

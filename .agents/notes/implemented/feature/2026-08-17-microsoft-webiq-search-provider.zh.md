@@ -1,4 +1,4 @@
-# Agent Note：Microsoft Web IQ 搜索提供方
+# Agent Note: Microsoft Web IQ 搜索提供方
 
 Status: implemented
 
@@ -8,25 +8,25 @@ Status: implemented
 
 web 能力有一个面向模型的 `web_search` 工具和一个提供方注册表，但发布的 Web profile 只提供 DeepSeek 搜索提供方。想使用 Microsoft Web IQ 的用户只能替换该工具，或在正常的提供方、设置与凭据生命周期之外自行拼装集成。
 
-提供方包还需要一条产品化的配置路径。API Key 绝不能进入设置响应或浏览器产物，而新增第二个可用提供方会让隐式选择变得含混。`dsh-web` 服务在启动时就捕获了所配置的提供方，因此浏览器里的设置无法在不重启应用的前提下为下一次搜索选中另一个提供方。
+提供方包还需要一条产品化的配置路径。API Key 绝不能进入设置响应或浏览器产物，而新增第二个可用提供方会让隐式选择变得含混。只在启动时捕获的提供方选择，无法让用户在不重启应用的前提下为下一次搜索选择另一个提供方。
 
 ## 决策
 
 Web IQ 从自己的仓库以 `@edwindigital/dsh-web-search-microsoft-webiq` 发布，不再位于 `packages/web/`。它是"搜索提供方无需在本仓库占位"这一判断的实证：`dsh plugin --profile web add` 记录依赖并追加该包自带的 `dsh.bundle.patch` 层，harness 包作为 peer 依赖从运行中的安装解析，浏览器半包经由已安装的 Host 行进入客户端模块表。
 
-Agent 调用继续使用来自 `@deepseek-ai/dsh-tool-web` 的中立 `web_search` 工具，不存在第二个面向模型的工具。已安装的提供方组合包与 DeepSeek 并存而非取代它——在用户显式选择另一个提供方之前，`web` 接缝保持 `deepseek-official`。未选定提供方的独立组合沿用既有的 `ctx.web` 规则：恰有一个可用提供方时自动选中，多个可用提供方则要求显式选择。
+Agent 调用继续使用来自 `@deepseek-ai/dsh-tool-web` 的提供方无关 `web_search` 工具，不存在第二个面向模型的工具。已安装的提供方组合包与 DeepSeek 并存而非取代它——在用户显式选择另一个提供方之前，`web` seam 保持 `deepseek-official`。未选定提供方的独立组合沿用既有的 `ctx.web` 规则：恰有一个可用提供方时自动选中，多个可用提供方则要求显式选择。
 
 本仓库只保留树外组合包无法自行完成的那一处改动。
 
 ## 运行期提供方选择
 
-`@deepseek-ai/dsh-web` 拥有设置命名空间 `web` 的 `searchProvider` 与 `fetchProvider`，并在执行时而非启动时读取生效分区，未挂载设置服务时回落到组合条目。既有环境变量继续作为缺失字段的回落。因此已提交的 `searchProvider` 变更控制下一次 `web_search` 调用，既不打断进行中的调用，也不把 Settings 变成必需服务。
+`@deepseek-ai/dsh-web` 将 `searchProvider` 与 `fetchProvider` 声明为 `.volatile()` Config 字段。Settings 从 profile 条目 id 派生命名空间，base profile 中该 id 为 `web`。服务在每项操作开始时读取对应引用，值缺失时回落到环境变量。已提交的变更控制下一次调用，不会重新挂载服务或打断进行中的工作。引用由 Loader 管理，因此 Settings 不是必需服务，移除它也不会回退 profile 配置。
 
 ## 树外命名空间的浏览器暴露
 
-卡片能被服务，曾经需要在 `@deepseek-ai/dsh-apiproxy` 的硬编码 `WEB_SETTINGS_NAMESPACES` allowlist 中有一条条目，这使得每一个第三方配置界面都要付出一次上游改动。该 allowlist 已退场：proxy 现在服务 `ctx.settings.describe()` 返回的全部命名空间，而 `settings.plugin.item` 以卡片所编辑的命名空间为 key。树外插件现在凭自己的注册就能抵达配置页，本仓库不再为提供方代持任何东西。
+Settings 从活动的 Loader 条目及其 volatile Config 字段派生可编辑表单。树外插件通过根包条目交付浏览器半包，并通过 `ctx.configForms.whileServed` 和 `plugins.item` 注册页面。[实时配置指南](../../../../docs/cookbook/adding-a-settings-card.zh.md)定义表单与浏览器交付接口，无需提供方专用的 Host allowlist 或中心设置卡片。
 
-外部卡片应注册到这个键控槽位；仍使用早先 `id`/`order` 列表形式的卡片不会被分发。
+外部组合包必须适配所安装 Harness 版本的配置和客户端 API。页面从所属页面拥有者接收表单状态与携带版本号的 `form.mutate` 操作。
 
 ## 已评估的替代方案
 
@@ -46,12 +46,12 @@ Agent 调用继续使用来自 `@deepseek-ai/dsh-tool-web` 的中立 `web_search
 
 ## 验证
 
-- `dsh-web` 定向套件 22 项测试通过，含运行期提供方选择与 Settings 脱离时的回落。
-- base 组合包两项组合测试通过，选中的提供方仍为 `deepseek-official`。
-- 把外部组合包装入一份临时 `DSH_HOME` 后，它被记入 `dsh.profile.bundles`，其行挂载进组合配置，卡片在插件设置页可达。
+- `dsh-web` 定向套件通过 Loader 使用的同一实时引用更新原语覆盖搜索与抓取提供方的实时切换。
+- base 组合包显式选择 `deepseek-official` 进行搜索，选择 `http` 进行抓取。
+- 外部提供方仓库负责针对目标 Harness 版本验证安装和浏览器页面；树内套件不验证已安装的第三方组合包。
 
 ## 后果
 
-插件配置的 Playwright 场景不再覆盖"已安装的第三方卡片"，因为树内已无包能产出这样一张卡片。它断言的是随产品发布的那几张卡片；第三方卡片行为改由提供方自己的仓库验证。
+插件配置的 Playwright 场景覆盖随产品发布的插件。第三方安装和卡片行为需要在提供方自己的仓库中验证。
 
 一张浏览器卡片会写入两个设置命名空间外加一份凭据，这些操作并非原子。该约束现随提供方外移，但今后任何跨两个拥有者的树内卡片都继承它：在结算后分别读回各拥有者，保留 Host 未接受的值，并报告失败的那个动作而非宣称成功。

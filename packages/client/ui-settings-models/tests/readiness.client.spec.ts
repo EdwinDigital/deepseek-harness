@@ -1,10 +1,10 @@
 /** Pure first-run readiness projection over the shared Models join. */
 import { describe, expect, it } from 'vitest'
-import type { CredentialView } from '@deepseek-ai/dsh-api-remotes/client'
+import type { CredentialInfo } from '@deepseek-ai/dsh-api-remotes/client'
 import type { ModelsSettingsState, ProviderRow } from '../src/client/store.ts'
 import { onboardingReadiness, providerUsable } from '../src/client/store.ts'
 
-const missingCredential: CredentialView = { configured: false, writable: true }
+const missingCredential: CredentialInfo = { configured: false, writable: true }
 
 function row(overrides: Partial<ProviderRow> = {}): ProviderRow {
   return {
@@ -19,8 +19,6 @@ function row(overrides: Partial<ProviderRow> = {}): ProviderRow {
     removable: false,
     apiKeyEnv: 'DEEPSEEK_API_KEY',
     credential: missingCredential,
-    authStatus: undefined,
-    authOperation: undefined,
     ...overrides,
   }
 }
@@ -39,8 +37,6 @@ function otherRow(overrides: Partial<ProviderRow> = {}): ProviderRow {
     removable: true,
     apiKeyEnv: 'HFAI_API_KEY',
     credential: { configured: true, source: 'file', writable: true },
-    authStatus: undefined,
-    authOperation: undefined,
     ...overrides,
   }
 }

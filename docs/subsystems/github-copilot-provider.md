@@ -2,7 +2,7 @@
 
 English | [中文](github-copilot-provider.zh.md)
 
-The `github-copilot` route uses pi-ai's GitHub Device OAuth implementation and the Harness LLM, credential, Host API, and Web client plugins. This page describes the responsibilities and lifecycle of that assembled provider. The generic authentication types remain part of the [LLM subsystem](llm-streaming.md), and the rationale for assigning provider protocol to the adapter is recorded in the [provider OAuth Agent Note](../../.agents/notes/implemented/feature/2026-08-14-llm-provider-oauth.md).
+The `github-copilot` route uses pi-ai's GitHub Device OAuth implementation. The [LLM subsystem](llm-streaming.md) owns model routing; the [credentials subsystem](credentials.md) owns credential records and authorization flows. This page describes how those plugins serve this provider.
 
 ## Plugin responsibilities
 
@@ -10,52 +10,52 @@ The implementation extends existing plugin services rather than adding provider 
 
 | Plugin | Responsibility |
 |---|---|
-| [`dsh-llm`](../../packages/llm/llm/README.md) | Declares provider-neutral authentication methods, status, interaction callbacks, login, and logout on `LlmAdapter`; `LlmRuntime` routes calls to the adapter registered for a provider. |
-| [`dsh-llm-pi-ai`](../../packages/llm/llm-pi-ai/README.md) | Registers `github-copilot` on `ctx.llm`, delegates login, refresh, request authentication, and logout to pi-ai, and adapts pi-ai credentials to Harness storage. |
-| [`dsh-credentials`](../../packages/credentials/credentials/README.md) | Supplies the active secret store through `ctx.credentials`; it persists opaque values without knowing GitHub or pi-ai protocols. |
-| [`dsh-host-apiproxy`](../../packages/host/apiproxy/README.md) | Exposes generic LLM authentication operations over typed unary RPC and keeps live prompts, cancellation, and bounded non-secret progress on the Host. |
-| [`dsh-ui-settings-models`](../../packages/client/ui-settings-models/README.md) | Renders the provider-neutral operation, Device OAuth code and verification URL, prompts, cancellation, completion, and logout. |
+| [`dsh-llm`](../../packages/llm/llm/README.md) | Routes model requests to the registered adapter. |
+| [`dsh-llm-pi-ai`](../../packages/llm/llm-pi-ai/README.md) | Registers model routes and authorization flows, delegates the GitHub protocol to pi-ai, and adapts its credential store. |
+| [`dsh-credentials`](../../packages/credentials/credentials/README.md) | Persists scoped credential records and owns serialized record updates. |
+| [`dsh-authorization`](../../packages/credentials/authorization/README.md) | Registers login methods, routes notices and prompts to the caller, and confirms a credential commit before reporting success. |
+| [`dsh-client-ui-settings-models`](../../packages/client/ui-settings-models/README.md) | Configures provider routes and model catalogs, with extension slots for additional provider controls. |
 
-This division follows the Harness capability model: `dsh-llm` is the Service Definition, `dsh-llm-pi-ai` is the Service Provider, and ApiProxy plus Models settings are Consumers. The provider remains replaceable through `ctx.llm`; registrations use Cordis effects and unload with their plugin. No GitHub-specific branch enters `dsh-agent-loop`.
+The adapter owns the provider protocol, while authorization is independent of model execution. Registrations use Cordis effects and unload with their plugin. No GitHub-specific branch enters `dsh-agent-loop`.
 
 ## Login flow
 
-1. Models settings starts `llm.startAuth` for the registered route and the `oauth` method.
-2. ApiProxy creates or reuses the route's running operation and calls `ctx.llm.providerLogin()` with Host-owned notification, prompt, and cancellation callbacks.
-3. `LlmRuntime` verifies that the live adapter advertises the method, then dispatches to `PiAiAdapter.login()`.
-4. pi-ai emits the GitHub verification URL and user code, handles any prompt, exchanges the approved device code, and writes its canonical OAuth credential through `HarnessCredentialStore`.
-5. Models settings polls the operation while it is running. A successful terminal state triggers a fresh non-secret authentication-status read and makes the route usable.
+1. The pi-ai plugin registers the `llm-pi-ai/github-copilot` authorization flow independently of whether a model route is configured.
+2. A caller starts the flow through `ctx.authorization.begin()` with the `oauth` method and its own interaction callbacks.
+3. The authorization service validates the method and allows only one attempt per credential key. The flow runs pi-ai's login with the attempt's cancellation signal.
+4. pi-ai emits the GitHub verification URL and user code, handles prompts, exchanges the approved device code, and writes the credential through `credentialStoreFrom()`.
+5. The authorization service reports `authorized` only after observing a credential commit during the attempt. The configured model route reads that stored credential on later requests.
 
-The browser receives operation ids, status, bounded notifications, and at most one pending prompt. It never receives the access token, refresh token, or serialized credential. The retained operation lets a reloaded page recover a running or terminal flow while the Host process remains alive; operations do not survive a Host restart.
+The caller receives notices, prompts, and an authorization outcome rather than the stored OAuth grant. Interaction belongs to the request that started it. Attempts are not resumable: reloading a browser during login abandons the attempt, and the user must start again.
 
 ## Credential storage and refresh
 
-`HarnessCredentialStore` derives one deterministic `CredentialRef` from each provider route and stores a versioned JSON document through the active `ctx.credentials` provider. Settings contain provider profiles and credential references for API-key routes, but never GitHub OAuth tokens.
+The adapter stores the OAuth grant as an opaque `grant` record at `llm-pi-ai/github-copilot`. Provider configuration contains route settings and optional credential references, not OAuth tokens. The [pi-ai package](../../packages/llm/llm-pi-ai/README.md) owns the sign-in contract.
 
-Each pi-ai `Models` snapshot shares this store. pi-ai reads the credential before a provider request, checks expiry, refreshes when required, and persists credential rotation before dispatch. A stored OAuth credential remains authoritative until logout; refresh failure does not fall back to an ambient API key.
+Each pi-ai model collection uses the same Harness credential adapter. A route's explicit `apiKeyEnv` override takes precedence over the stored sign-in. Without that override, pi-ai reads and refreshes the stored grant as required.
 
-`modify()` and `delete()` serialize operations per provider route inside one Harness process. A shared backing credential provider remains responsible for cross-process locking. Without that support, two Harness processes may refresh concurrently and later reads observe the last completed write.
+Credential refresh runs inside `ctx.credentials.modifyRecord()`, whose local provider holds a cross-process lock across the update. The [credential-store documentation](../../packages/credentials/credentials/README.md) defines persistence and locking obligations.
 
 ## Logout and failure behavior
 
-`llm.logout` cancels a running login, rejects any pending prompt, delegates credential deletion to the adapter, and removes the retained operation. Later requests require another login unless the route also has independently configured authentication.
+`ctx.authorization.cancel(key)` withdraws an active attempt. Signing out is `ctx.credentials.deleteRecord(key)`: it forgets the local grant without revoking it at GitHub. Independently configured credentials remain separate from that record.
 
-Unknown routes and unsupported methods fail before interaction begins. Device-flow denial, expiry, cancellation, network failure, storage failure, corrupt stored JSON, and refresh failure surface as provider or credential errors without returning tokens. Corrupt documents remain removable through logout.
+Unknown flows, unsupported methods, and concurrent attempts fail before a new interaction starts. A declined prompt or withdrawn request settles as `cancelled`; network, storage, and provider failures remain errors. The authorization service rejects a flow that returns without committing a credential.
 
-ApiProxy keeps at most 32 non-secret notifications and one retained operation per provider. Starting a new flow replaces that provider's terminal operation, which bounds Host memory by provider count.
+Cancellation and local record deletion are separate operations. Their lifecycle rules belong to the [authorization package](../../packages/credentials/authorization/README.md).
 
 ## Architecture assessment
 
 The provider conforms to the repository's plugin architecture:
 
-- provider authentication extends the registered `ctx.llm` adapter instead of introducing a GitHub service or modifying the loop;
-- GitHub protocol and credential serialization remain provider-owned, while `ctx.credentials` owns secret persistence;
-- Host RPC and Web settings depend only on provider-neutral LLM authentication types;
-- OAuth interaction is not model-visible and therefore does not add session events; model requests retain their existing logged provider and model provenance;
-- API-key adapters inherit empty authentication methods and keep their existing behavior.
+- model execution remains on `ctx.llm`, while interactive credential acquisition uses `ctx.authorization`;
+- GitHub protocol and grant serialization remain provider-owned, while `ctx.credentials` owns persistence and locking;
+- authorization callers render provider-neutral notices and prompts rather than implementing the GitHub protocol;
+- OAuth interaction is not model-visible and does not add session events;
+- API-key references, stored grants, and provider-native discovery follow the adapter's documented precedence.
 
-The deliberate limitations are process-local refresh serialization and process-local authentication operations. They do not weaken plugin replacement or expose secrets, but deployments that share one credential store across processes need a backing provider with stronger locking.
+Attempts are process-local and cannot be resumed. Local sign-out does not revoke access at the issuer. Those limits are shared authorization behavior, not GitHub-specific exceptions.
 
 ## Verification ownership
 
-Storage parsing, versioning, serialization, deletion, and concurrent modification belong to [`credential-store.spec.ts`](../../packages/llm/llm-pi-ai/tests/credential-store.spec.ts). Adapter registration and provider authentication routing belong to the `dsh-llm` and `dsh-llm-pi-ai` package tests. Operation recovery, prompts, cancellation, bounded events, logout, and wire validation belong to the ApiProxy tests. Models settings tests cover Device OAuth rendering, polling, page recovery, prompt responses, cancellation, and logout. The assembled Web snapshot proves that a real profile exposes the provider flow without requiring live credentials.
+The pi-ai adapter, authorization service, and credential provider own tests for protocol adaptation, interaction cancellation, commit confirmation, persistence, and refresh locking. A live GitHub login additionally requires an authorized account; keyless tests do not establish that an account can access Copilot.

@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for github-copilot-provider.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/subsystems/github-copilot-provider.md
-github-copilot-provider.md: f9639cbb842134343c9f23a41fd076f8a15688b8
-github-copilot-provider.zh.md: 6d1a0856645f0964e2a682160e9d064726fe736e
+/github-copilot-provider:
+  en: c289913de0b546a3
+  zh: 80a5ac8009b19eda
+/github-copilot-provider/plugin-responsibilities:
+  en: 9a9b2b4a91f02049
+  zh: 3d3f3b307caba751
+/github-copilot-provider/login-flow:
+  en: fb2f836c7e1a5ecd
+  zh: 71d9d9ca2fb3308c
+/github-copilot-provider/credential-storage-and-refresh:
+  en: dc7e228ef5032109
+  zh: 945bc40bdf130643
+/github-copilot-provider/logout-and-failure-behavior:
+  en: 2287c22ff4207d4d
+  zh: ae9801e4bc48dae9
+/github-copilot-provider/architecture-assessment:
+  en: ea6121ef9c94abf8
+  zh: 69070344a6736ec1
+/github-copilot-provider/verification-ownership:
+  en: 76a89708432fbcbd
+  zh: 24dfd145b25d1800
