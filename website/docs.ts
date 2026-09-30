@@ -170,6 +170,14 @@ const homeAndGuide = pairedPages([
     section: { root: '集成', en: 'Integrations' },
     order: 1,
   },
+  {
+    source: 'docs/user/guide/github-copilot-webiq.md',
+    route: 'guide/github-copilot-webiq.md',
+    label: { root: 'GitHub Copilot 与 Web IQ', en: 'GitHub Copilot and Web IQ' },
+    sidebar: { root: 'zh-guide', en: 'en-guide' },
+    section: { root: '集成', en: 'Integrations' },
+    order: 2,
+  },
 ])
 
 const develop = pairedPages([

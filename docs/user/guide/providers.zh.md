@@ -16,7 +16,7 @@
 
 选择**添加模型提供商**。卡片默认打开在**第三方模型提供商**：选取 dsh 自带的提供商——列表显示的是提供商 id，例如 `anthropic`、`openai`、Kimi 对应的 `moonshotai`、GLM 对应的 `zai`——输入其 API 密钥并保存。已安装目录会提供端点、协议和模型列表。
 
-通过 OAuth 登录的提供商（例如 Codex）暂不支持。
+本页面不会发起 OAuth 登录。使用 GitHub Copilot 时，请按照 [Copilot 和 WebIQ 指南](github-copilot-webiq.zh.md)通过登录插件完成认证，再添加内置的 `github-copilot` 提供商，无需普通 API 密钥。
 
 ## 添加自定义模型 API
 

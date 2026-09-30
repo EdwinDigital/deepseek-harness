@@ -1,0 +1,67 @@
+# Bilingual-pair consistency record for github-copilot-webiq.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/user/guide/github-copilot-webiq.md
+/:
+  en: 82a8de80250b8fea
+  zh: 09d52b869f776c43
+/power-up-deepseek-harness-web-research-with-github-copilot-and-microsoft-web-iq:
+  en: 70bb4bc3b1077233
+  zh: 7d09fa71ffc7fe8b
+/power-up-deepseek-harness-web-research-with-github-copilot-and-microsoft-web-iq/summary:
+  en: b26cdfc3cb86b8c9
+  zh: 902cf1645f960d8f
+/power-up-deepseek-harness-web-research-with-github-copilot-and-microsoft-web-iq/table-of-contents:
+  en: 12147cecfb8d6d52
+  zh: 64c818541e49a43c
+/power-up-deepseek-harness-web-research-with-github-copilot-and-microsoft-web-iq/see-it-in-action-from-interviews-to-comparison:
+  en: ca0e3a11b0e7434c
+  zh: 8fe9758f6752c807
+/power-up-deepseek-harness-web-research-with-github-copilot-and-microsoft-web-iq/see-it-in-action-from-interviews-to-comparison/beyond-the-answer-inspect-what-a-search-actually-did:
+  en: 886aac6d5db178a3
+  zh: a808cbdb48d80b81
+/power-up-deepseek-harness-web-research-with-github-copilot-and-microsoft-web-iq/use-dsh-for-in-depth-industry-research:
+  en: 99b922e0e8b67dc4
+  zh: 2f1b34c1e1740ac8
+/power-up-deepseek-harness-web-research-with-github-copilot-and-microsoft-web-iq/easier-model-access-and-direct-global-retrieval:
+  en: 1f4e7c6085c4f04d
+  zh: 4333f3b267a70d08
+/power-up-deepseek-harness-web-research-with-github-copilot-and-microsoft-web-iq/easier-model-access-and-direct-global-retrieval/copilot-one-authorization-connects-multiple-frontier-model-families:
+  en: 872f8734a307ebd6
+  zh: 8011833da50e16ec
+/power-up-deepseek-harness-web-research-with-github-copilot-and-microsoft-web-iq/easier-model-access-and-direct-global-retrieval/web-iq-replace-default-search-with-a-dedicated-global-retrieval-service:
+  en: a1ce676c922035c6
+  zh: db04c4be261c33d1
+/power-up-deepseek-harness-web-research-with-github-copilot-and-microsoft-web-iq/easier-model-access-and-direct-global-retrieval/what-are-microsoft-web-iq-s-performance-advantages:
+  en: 882b47af325215c9
+  zh: 5126aedab8b3c8c9
+/power-up-deepseek-harness-web-research-with-github-copilot-and-microsoft-web-iq/easier-model-access-and-direct-global-retrieval/who-benefits-most-from-this-setup:
+  en: c7a797bc1eada1a1
+  zh: 2e3f2fc9b18360e0
+/power-up-deepseek-harness-web-research-with-github-copilot-and-microsoft-web-iq/quick-installation:
+  en: 2b59af6d38042451
+  zh: b1b97d9ca266ec0e
+/power-up-deepseek-harness-web-research-with-github-copilot-and-microsoft-web-iq/detailed-installation-and-configuration-screenshots:
+  en: 9d922bc1e05a5bf6
+  zh: 166eb04ceba86a8b
+/power-up-deepseek-harness-web-research-with-github-copilot-and-microsoft-web-iq/detailed-installation-and-configuration-screenshots/1-copilot-repository-installation:
+  en: 870d8396b1d5fd6e
+  zh: 00d18efc0afd996a
+/power-up-deepseek-harness-web-research-with-github-copilot-and-microsoft-web-iq/detailed-installation-and-configuration-screenshots/2-copilot-authentication-status:
+  en: ae96cf8e14d43b8d
+  zh: 3b5fb16ab693362b
+/power-up-deepseek-harness-web-research-with-github-copilot-and-microsoft-web-iq/detailed-installation-and-configuration-screenshots/3-enabled-model-provider:
+  en: bddaf15db59ee107
+  zh: 2283ebd878176e8b
+/power-up-deepseek-harness-web-research-with-github-copilot-and-microsoft-web-iq/detailed-installation-and-configuration-screenshots/4-copilot-model-picker:
+  en: 35ae2742353240ca
+  zh: 9bc7a2696f01c9eb
+/power-up-deepseek-harness-web-research-with-github-copilot-and-microsoft-web-iq/detailed-installation-and-configuration-screenshots/5-install-the-microsoft-web-iq-plugin:
+  en: cd18de93e470d669
+  zh: 792473387261857b
+/power-up-deepseek-harness-web-research-with-github-copilot-and-microsoft-web-iq/detailed-installation-and-configuration-screenshots/6-webiq-configuration:
+  en: 800c8a521038b84b
+  zh: fba10818825a56dd
+/power-up-deepseek-harness-web-research-with-github-copilot-and-microsoft-web-iq/references:
+  en: 496512acdc8105ae
+  zh: 18979b6bad837033

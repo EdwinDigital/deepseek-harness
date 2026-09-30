@@ -16,7 +16,7 @@ Keys are write-only. The page receives a redacted descriptor after saving, never
 
 Choose **Add model provider**. The card opens on **Third-party model provider**: pick a provider dsh ships with — the list shows provider ids such as `anthropic`, `openai`, `moonshotai` for Kimi, or `zai` for GLM — enter its API key, and save. The installed catalog supplies the endpoint, protocol, and model list.
 
-Providers that sign in with OAuth, such as Codex, are not supported here yet.
+This page does not initiate OAuth sign-in. For GitHub Copilot, use the [Copilot and WebIQ guide](github-copilot-webiq.md) to authenticate through the login plugin, then add the built-in `github-copilot` provider without an ordinary API key.
 
 ## Add a custom model API
 
