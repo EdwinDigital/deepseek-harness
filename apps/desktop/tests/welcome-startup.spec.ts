@@ -42,6 +42,10 @@ const state = vi.hoisted(() => ({
   nativeTheme: { themeSource: 'system', shouldUseDarkColors: false },
 }))
 
+vi.mock('../src/zoom.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/zoom.ts')>()
+  return { ...actual, openDesktopZoom: async () => new actual.DesktopZoom(1, async () => {}) }
+})
 vi.mock('../src/crash-report.ts', async importOriginal => ({
   ...await importOriginal<typeof import('../src/crash-report.ts')>(),
   writeCrashReport: vi.fn(async () => undefined),
@@ -71,7 +75,7 @@ vi.mock('electron', () => ({
     constructor(options: BrowserWindowConstructorOptions) { state.windowOptions = options }
     private ready: (() => void) | undefined
     webContents = { mainFrame: { url: 'dsh-app://app/' }, setWindowOpenHandler: vi.fn(),
-      on: vi.fn(), once: vi.fn(), send: vi.fn(), openDevTools: state.openDevTools }
+      on: vi.fn(), once: vi.fn(), send: vi.fn(), setZoomFactor: vi.fn(), openDevTools: state.openDevTools }
     static getAllWindows() { return [] }
     once(name: string, callback: () => void) { if (name === 'ready-to-show') this.ready = callback; return this }
     on() { return this }
@@ -80,6 +84,7 @@ vi.mock('electron', () => ({
     restore = vi.fn()
     focus = state.focusWorkspace
     moveTop = state.moveTopWorkspace
+    setTitleBarOverlay = vi.fn()
     hide = vi.fn()
     show = state.showWorkspace
     showInactive = state.showInactiveWorkspace

@@ -20,6 +20,7 @@ function browserEnvironment() {
     readyState: 'loading',
     documentElement: {
       dataset: {} as Record<string, string>,
+      style: { setProperty: vi.fn() },
       getAttribute: (name: string): string | null => attributes.get(name) ?? null,
       setAttribute: (name: string, value: string): void => { attributes.set(name, value) },
     },
@@ -57,6 +58,7 @@ describe.skipIf(!existsSync(preload('preload-app')))('built sandboxed Desktop pr
     const electron = {
       contextBridge: { exposeInMainWorld: (key: string, value: Record<string, unknown>) => { exposed.set(key, value) } },
       ipcRenderer: { invoke, send, on: vi.fn(), off: vi.fn() },
+      webFrame: { getZoomFactor: () => 1 },
     }
     runInNewContext(readFileSync(preload(name), 'utf8'), {
       ...browser.globals,

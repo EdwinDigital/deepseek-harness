@@ -91,7 +91,7 @@
    Declared on the root element rather than the frame so
    overlays portalled to document.body inherit it too. */
 :global(html[data-platform='darwin']) {
-  --dsh-frame-top-clearance: 48px;
+  --dsh-frame-top-clearance: calc(48px * var(--dsh-native-chrome-scale, 1));
 }
 
 /* In-frame Windows content already clears the caption through .frame padding. */
@@ -181,7 +181,7 @@
    (28 + 8 + 28), then 8px of air. Main panels whose content reaches the
    top-left corner pad by this. */
 :global([data-platform='darwin']) .frame[data-sidebar-collapsed] {
-  --dsh-frame-leading-clearance: 160px;
+  --dsh-frame-leading-clearance: calc(88px * var(--dsh-native-chrome-scale, 1) + 72px);
 }
 
 /* Fullscreen hides the traffic lights (preload mirrors the window state onto
@@ -194,6 +194,7 @@
 }
 
 :global([data-platform='darwin'][data-fullscreen]) .leadingSeat {
+  top: 11px;
   left: 12px;
 }
 
@@ -211,8 +212,8 @@
    window drag row beneath (Electron app-regions are geometry, not stacking). */
 .leadingSeat {
   position: absolute;
-  top: 11px;
-  left: 88px;
+  top: calc(25px * var(--dsh-native-chrome-scale, 1) - 14px);
+  left: calc(88px * var(--dsh-native-chrome-scale, 1));
   z-index: 15;
   display: flex;
   align-items: center;

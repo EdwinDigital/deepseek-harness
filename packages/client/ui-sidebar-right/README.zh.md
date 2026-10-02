@@ -98,6 +98,8 @@ tab 类型分两阶段注册，随包发布的引导类型走的正是别的包�
 
 `focusedTarget(element?)` 解析当前 DOM 分栏和标签页，也接受嵌入 iframe；焦点位于外部时不返回页面。`commandTarget(element?)` 另外允许外部打开动作使用屏幕上会话的活动停靠分栏。捕获值包含 occurrence 和导航版本；`isTargetCurrent(target)` 拒绝会话变更、已移动或重新打开的标签页，以及期间发生的导航。焦点和指针激活独立于持久化的布局选择。
 
+在 macOS 上，[桌面缩放](../../../apps/desktop/README.zh.md#workspace-zoom)低于 100% 时，整栏展示会补偿窗口按钮的行内占位与顶部空间；进入系统窗口全屏后移除这部分额外空间。
+
 <a id="the-tab-domain"></a>
 ## Tab 域
 

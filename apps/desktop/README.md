@@ -22,6 +22,15 @@ Desktop microphone access is restricted to audio requests from the primary `dsh-
 
 Press F12 (Fn+F12 on media-key keyboards), Command+Option+I on macOS, or Ctrl+Shift+I on Windows to toggle DevTools for the focused application page, including in packaged builds. These native shortcuts use hidden application-menu items. Update overlays and packaged embedded browser guests disable DevTools.
 
+<a id="workspace-zoom"></a>
+## Workspace zoom
+
+View → Zoom In, Zoom Out, and Reset Zoom scale the entire workspace from 50% to 200%; Windows places View inside its Application menu. Use Command on macOS or Ctrl elsewhere with `+` (or `=`), `-`, and `0`. Explicitly configured shortcut bindings take precedence over native accelerators. Shortcut recording, blocked shell overlays, startup, and shutdown prevent zoom commands from changing the workspace. Welcome and update windows, OS window buttons, and independently embedded browser or Platform documents retain their own scale.
+
+Desktop stores the selected factor in version-1 `zoom.json` under Electron userData, independently of Host profiles and content font size. Atomic writes settle before the new scale appears; repeated commands are serialized, and a failed save retains the previous scale with a localized error. Normal quit, recovery, and installer handoff wait for admitted writes. Missing preferences default to 100%; malformed, unsupported, or unreadable preferences fail startup without overwriting the file. Reloaded and recreated workspace windows restore the saved factor before they appear.
+
+Below 100%, the preload publishes `--dsh-native-chrome-scale` to preserve native-button clearances. Windows reserves at least 40 device-independent pixels for its caption and enlarges it above 100%; macOS protects traffic-light space in expanded and collapsed sidebars and full-pane previews. Platform view bounds convert renderer CSS pixels with the workspace zoom factor before rounding to native coordinates; display pixel density is not part of that conversion.
+
 ## Terminal command
 
 The application menu's **Manage dsh Command…** entry, immediately below **Check for Updates…**, shows the current command and offers Install, Repair, and Remove. The command uses Desktop's installed runtime and the ordinary [dsh CLI](../cli/README.md), including when the Desktop application is closed. Open a new terminal after installation and run `dsh --version`.

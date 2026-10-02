@@ -184,7 +184,7 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  height: 52px;
+  height: calc(52px * var(--dsh-native-chrome-scale, 1));
   box-sizing: border-box;
   margin: -6px calc(-1 * var(--dsh-sidebar-inline-padding)) 0;
   /* The 2px foot centres the 28px toggle at y 25, level with the collapsed

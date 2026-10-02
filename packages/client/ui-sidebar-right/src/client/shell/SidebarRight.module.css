@@ -88,7 +88,8 @@
 :global([data-platform='darwin']) .panel[data-sidebar-right-panel='fullscreen'] :global([data-dockkit-host='dock'][data-dockkit-column='0']) {
   /* Lights end near x 68; 88 leaves the same 20px of air the conversation
      header's leading controls keep after them (ui-sidebar HeaderLeadingControls). */
-  --dsh-dockkit-strip-inline-start: 88px;
+  --dsh-dockkit-strip-inline-start: calc(88px * var(--dsh-native-chrome-scale, 1));
+  padding-top: calc(38px * (var(--dsh-native-chrome-scale, 1) - 1));
 }
 
 :global([data-platform='darwin']) .panel[data-sidebar-right-panel='fullscreen'] :global([data-dockkit-host='dock'][data-dockkit-column='1']) {
@@ -99,6 +100,7 @@
    preload); the first pane's strip keeps only the ordinary inset. */
 :global([data-platform='darwin'][data-fullscreen]) .panel[data-sidebar-right-panel='fullscreen'] :global([data-dockkit-host='dock'][data-dockkit-column='0']) {
   --dsh-dockkit-strip-inline-start: 10px;
+  padding-top: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {

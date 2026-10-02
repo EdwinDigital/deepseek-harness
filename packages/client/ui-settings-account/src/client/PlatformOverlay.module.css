@@ -42,6 +42,11 @@
 
 :global(html[data-platform="darwin"]) .trafficLights {
   display: block;
+  width: calc(60.667px * var(--dsh-native-chrome-scale, 1));
+}
+
+:global(html[data-platform="darwin"]) .header {
+  min-height: calc(48px * var(--dsh-native-chrome-scale, 1));
 }
 
 .back {

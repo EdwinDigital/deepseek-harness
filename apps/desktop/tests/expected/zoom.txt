@@ -1,0 +1,6 @@
+zoom=0.5 viewport-and-native-bounds=aligned conversation-tabs=clear
+zoom=1 viewport-and-native-bounds=aligned conversation-tabs=clear
+zoom=2 viewport-and-native-bounds=aligned conversation-tabs=clear
+saved=1.25
+restart-and-reload=1.25
+reset=1

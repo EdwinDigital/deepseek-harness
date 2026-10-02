@@ -45,6 +45,12 @@ afterEach(() => {
   state.views.length = 0; state.sessions.length = 0; state.loadFailure = undefined; state.loadBarrier = undefined
   vi.clearAllMocks(); vi.unstubAllEnvs()
 })
+it('converts renderer bounds with page zoom before rounding, independently of display density', () => {
+  const bounds = { x: 10.4, y: 48.4, width: 200.4, height: 100.4 }
+  expect(platformBounds(bounds, 0.5)).toEqual({ x: 5, y: 24, width: 100, height: 50 })
+  expect(platformBounds(bounds, 2)).toEqual({ x: 21, y: 97, width: 401, height: 201 })
+})
+
 function setup() {
   const removeChildView = vi.fn()
   const owner = Object.assign(new EventEmitter(), {

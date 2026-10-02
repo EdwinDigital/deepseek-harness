@@ -118,6 +118,28 @@ function updateOverlayFixture(f: Awaited<ReturnType<typeof fixture>>) {
   }
 }
 
+it('guards native workspace commands during recording, overlays, and loss of window ownership', async () => {
+  const f = await fixture()
+  expect(f.keyboard.canRunNativeCommand()).toBe(true)
+  await f.call(DESKTOP_IPC.shortcutsRecording, true)
+  expect(f.keyboard.canRunNativeCommand()).toBe(false)
+  await f.call(DESKTOP_IPC.shortcutsRecording, false)
+  const overlay = updateOverlayFixture(f)()
+  expect(f.keyboard.canRunNativeCommand()).toBe(false)
+  overlay.destroy()
+  expect(f.keyboard.canRunNativeCommand()).toBe(true)
+  f.window.isFocused.mockReturnValue(false)
+  expect(f.keyboard.canRunNativeCommand()).toBe(false)
+  f.window.isFocused.mockReturnValue(true)
+  f.window.isEnabled.mockReturnValue(false)
+  expect(f.keyboard.canRunNativeCommand()).toBe(false)
+  f.window.isEnabled.mockReturnValue(true)
+  f.window.isDestroyed.mockReturnValue(true)
+  expect(f.keyboard.canRunNativeCommand()).toBe(false)
+  f.detach()
+  expect(f.keyboard.canRunNativeCommand()).toBe(false)
+})
+
 it('mirrors only successful bindings, suppresses recording menus, and invalidates pre-navigation drafts', async () => {
   const f = await fixture()
   const initial = await f.call<ShortcutConfigSnapshot>(DESKTOP_IPC.shortcutsGet, f.definitions)

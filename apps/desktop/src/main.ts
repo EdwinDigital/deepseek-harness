@@ -59,6 +59,7 @@ import { DesktopUpdateOverlays } from './update-overlay.ts'
 import { DesktopQuitConfirmation } from './quit-confirmation.ts'
 import { DesktopTray } from './tray.ts'
 import { DesktopBackgroundNotice } from './background-notice.ts'
+import { openDesktopZoom, desktopZoomItems, type ZoomAction } from './zoom.ts'
 
 let focusPrimaryWindow = (): void => {}
 let stopForRecovery = async (): Promise<void> => {}
@@ -203,7 +204,7 @@ function platformLoginUrl(authorizeUrl: string): string {
   return url.href
 }
 
-function createWindow(preload: string, show = false, primary = false): BrowserWindow {
+function createWindow(preload: string, show = false, primary = false, zoomFactor = 1): BrowserWindow {
   const window = new BrowserWindow({
     width: 1280,
     height: 820,
@@ -212,7 +213,7 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
     show,
     ...(process.platform === 'win32' && primary ? {
       titleBarStyle: 'hidden' as const,
-      titleBarOverlay: { height: WINDOWS_TITLEBAR_HEIGHT, color: chromeFallbackFill(),
+      titleBarOverlay: { height: Math.round(WINDOWS_TITLEBAR_HEIGHT * Math.max(1, zoomFactor)), color: chromeFallbackFill(),
         symbolColor: nativeTheme.shouldUseDarkColors ? '#f9fafb' : '#0f1115' },
     } : {}),
     // hiddenInset places traffic lights inside the sidebar; sidebar vibrancy
@@ -228,6 +229,7 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
     } : {}),
     webPreferences: {
       preload,
+      zoomFactor,
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
@@ -317,6 +319,7 @@ async function main(): Promise<void> {
   const journalDirectory = process.env.DSH_DESKTOP_UPDATE_JOURNAL_DIR
   const updateJournal = journalDirectory === undefined ? undefined : new DesktopUpdateJournal(journalDirectory, app.getVersion())
   const resources = runtimeResources()
+  const zoom = await openDesktopZoom(join(app.getPath('userData'), 'zoom.json'))
   const paths = resolveDesktopPaths()
   const development = !app.isPackaged
   const primaryRuntime = development
@@ -562,7 +565,7 @@ async function main(): Promise<void> {
     if (backend.host === undefined || welcomeBackend === undefined) throw new Error('desktop welcome: backend unavailable')
     return welcomeBackend.read()
   }
-  stopForRecovery = () => backend.close()
+  stopForRecovery = async () => { await Promise.all([backend.close(), zoom.idle()]) }
 
   const reconcileBackend = (): Promise<void> => {
     startup ??= (async () => {
@@ -622,6 +625,7 @@ async function main(): Promise<void> {
         // The backend's async cleanup callback can assign this after the reset above.
         const stopFailure = updateStopFailure as DesktopHostUncleanExitError | undefined
         if (stopFailure !== undefined) throw new DesktopUpdatePreparationError('stop-failed', locale.messages.updateStopFailed, stopFailure.message)
+        await zoom.idle()
         updateJournal?.action('install-confirmed')
         shellInstallerOwnsQuit = true
       } catch (error) {
@@ -733,11 +737,11 @@ async function main(): Promise<void> {
   ipcMain.handle(PLATFORM_IPC.open, (event, page: unknown, bounds: unknown) => {
     const owner = assertMainApplication(event)
     if (page !== 'usage' && page !== 'top-up') throw new Error('Invalid Platform page')
-    return platformView.open(owner, page, platformBounds(bounds))
+    return platformView.open(owner, page, platformBounds(bounds, owner.webContents.getZoomFactor()))
   })
   ipcMain.handle(PLATFORM_IPC.bounds, (event, bounds: unknown) => {
-    assertMainApplication(event)
-    platformView.setBounds(platformBounds(bounds))
+    const owner = assertMainApplication(event)
+    platformView.setBounds(platformBounds(bounds, owner.webContents.getZoomFactor()))
   })
   ipcMain.handle(PLATFORM_IPC.close, (event) => { assertMainApplication(event); platformView.close() })
   // Only the main window may synchronize its palette with the native material.
@@ -936,9 +940,33 @@ async function main(): Promise<void> {
   // its standard menus and application hide commands declared explicitly.
   // Keep app.name stable: Electron derives its default userData directory from it.
   const darwin = process.platform === 'darwin'
+  const applyZoom = (window: BrowserWindow): void => {
+    if (window.isDestroyed()) return
+    window.webContents.setZoomFactor(zoom.factor)
+    window.webContents.send(DESKTOP_IPC.zoomChanged, zoom.factor)
+    if (process.platform === 'win32') {
+      window.setTitleBarOverlay({ height: Math.round(WINDOWS_TITLEBAR_HEIGHT * Math.max(1, zoom.factor)) })
+    }
+  }
+  const changeZoom = (action: ZoomAction): void => {
+    const window = mainWindow
+    if (window === undefined || !enteredWorkspace || quitting || shellInstallerOwnsQuit || recovery.active
+      || isMandatory() || !shortcuts.canRunNativeCommand()) return
+    void zoom.change(action).then(() => {
+      if (!quitting && mainWindow === window) applyZoom(window)
+    }).catch((error: unknown) => {
+      console.error('desktop zoom: preference write failed', error)
+      if (!quitting) void ordinaryMessageBox({ type: 'error', title: locale.messages.viewMenu,
+        message: locale.messages.zoomSaveFailed }).catch((failure: unknown) => { console.error(failure) })
+    })
+  }
+  const viewMenu = (): MenuItemConstructorOptions => ({
+    label: currentDesktopLocale().messages.viewMenu,
+    submenu: desktopZoomItems(currentDesktopLocale().messages, changeZoom),
+  })
   const platformMenus = (): MenuItemConstructorOptions[] => darwin
-    ? [shortcuts.fileMenu(currentDesktopLocale().messages), { role: 'editMenu' }, { role: 'windowMenu' }]
-    : [{ role: 'editMenu' }]
+    ? [shortcuts.fileMenu(currentDesktopLocale().messages), { role: 'editMenu' }, viewMenu(), { role: 'windowMenu' }]
+    : [{ role: 'editMenu' }, viewMenu()]
   const hideCommands: MenuItemConstructorOptions[] = darwin
     ? [{ role: 'hide', label: currentDesktopLocale().messages.hideApplication },
       { role: 'hideOthers', label: currentDesktopLocale().messages.hideOtherApplications },
@@ -965,6 +993,7 @@ async function main(): Promise<void> {
       } },
     ] : [],
     { type: 'separator' },
+    ...process.platform === 'win32' ? [viewMenu(), { type: 'separator' as const }] : [],
     ...hideCommands,
     { role: 'quit', ...(darwin ? { label: currentDesktopLocale().messages.quitApplication }
       : process.platform === 'win32' ? { label: currentDesktopLocale().messages.exitApplication } : {}) },
@@ -974,10 +1003,11 @@ async function main(): Promise<void> {
     { role: 'toggleDevTools', visible: false, accelerator: 'F12' },
   ]
   const refreshApplicationMenu = (): void => {
-    Menu.setApplicationMenu(Menu.buildFromTemplate(process.platform === 'win32' ? devToolsItems : [{
-      label: darwin ? app.name : currentDesktopLocale().messages.application,
-      submenu: [...applicationItems(), ...devToolsItems],
-    }, ...platformMenus()]))
+    Menu.setApplicationMenu(Menu.buildFromTemplate(process.platform === 'win32'
+      ? [...devToolsItems, ...desktopZoomItems(currentDesktopLocale().messages, changeZoom).map(item => ({ ...item, visible: false }))] : [{
+        label: darwin ? app.name : currentDesktopLocale().messages.application,
+        submenu: [...applicationItems(), ...devToolsItems],
+      }, ...platformMenus()]))
     tray?.relabel()
   }
   refreshApplicationMenu()
@@ -1063,8 +1093,9 @@ async function main(): Promise<void> {
     }
   }
   const createMainWindow = (): BrowserWindow => {
-    const window = createWindow(appPreload, false, true)
+    const window = createWindow(appPreload, false, true, zoom.factor)
     mainWindow = window
+    window.webContents.on('did-finish-load', () => { applyZoom(window) })
     browserGuests.bind(window, (guest, name) => shortcuts.attachGuest(window, guest, name))
     shortcuts.attach(window)
     window.on('focus', automaticCheck)
@@ -1115,6 +1146,7 @@ async function main(): Promise<void> {
     const window = mainWindow ?? createMainWindow()
     await navigateMain(applicationUrl)
     if (isQuitting() || recovery.active || window.isDestroyed()) return
+    applyZoom(window)
     if (activate) window.show()
     else window.showInactive()
     enteredWorkspace = true
@@ -1251,7 +1283,7 @@ async function main(): Promise<void> {
     updateSchedule.dispose()
     updateDialog.dispose()
     mandatoryUI?.dispose()
-    void Promise.all([Promise.resolve(mandatoryPolicy?.dispose()).then(() => policyAuth?.dispose()), backend.close(),
+    void Promise.all([Promise.resolve(mandatoryPolicy?.dispose()).then(() => policyAuth?.dispose()), backend.close(), zoom.idle(),
       // A Platform cleanup failure is logged without cutting the remaining Host shutdown short.
       platformView.dispose().catch((error: unknown) => { console.error(error) })])
       .catch((error: unknown) => { console.error(error) }).finally(() => { app.quit() })

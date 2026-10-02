@@ -80,6 +80,11 @@
   padding-inline-start: max(0px, calc(var(--dsh-frame-leading-clearance, 0px) - 20px));
 }
 
+/* Collapsed desktop sidebars expose the title and tabs beneath fixed-size native controls. */
+:global(html[data-platform='darwin']:not([data-fullscreen])) :global([data-sidebar-collapsed]) .titleRow {
+  min-height: calc(50px * var(--dsh-native-chrome-scale, 1) - 20px);
+}
+
 .titleCluster {
   display: flex;
   flex: 1;

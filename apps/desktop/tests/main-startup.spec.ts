@@ -25,6 +25,12 @@ vi.mock('../src/crash-report.ts', async importOriginal => ({
   pruneCrashReports: vi.fn(async () => {}),
 }))
 
+const zoomPreferences = vi.hoisted(() => ({ factor: 1, write: vi.fn(async (_factor: number) => {}) }))
+vi.mock('../src/zoom.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/zoom.ts')>()
+  return { ...actual, openDesktopZoom: async () => new actual.DesktopZoom(zoomPreferences.factor, zoomPreferences.write) }
+})
+
 const harness = await vi.hoisted(async () => {
   const { EventEmitter } = await import('node:events')
   function deferred() {
@@ -69,6 +75,7 @@ const harness = await vi.hoisted(async () => {
   const menu = Object.assign(menuBuilder, { buildFromTemplate: menuBuilder, setApplicationMenu: vi.fn() })
   class FakeWindow extends EventEmitter {
     destroyed = false
+    zoomFactor = 1
     readonly urls: string[] = []
     readonly webContents = Object.assign(new EventEmitter(), {
       id: 42,
@@ -78,7 +85,8 @@ const harness = await vi.hoisted(async () => {
       openDevTools: vi.fn(),
       getURL: () => this.urls.at(-1) ?? '',
       mainFrame: { url: '' },
-      getZoomFactor: () => 1,
+      getZoomFactor: () => this.zoomFactor,
+      setZoomFactor: vi.fn((factor: number) => { this.zoomFactor = factor }),
       isDestroyed: () => this.destroyed,
       setIgnoreMenuShortcuts: vi.fn(),
       focus: vi.fn(),
@@ -112,6 +120,7 @@ const harness = await vi.hoisted(async () => {
     visible = true
     isVisible() { return this.visible }
     isFocused() { return true }
+    isEnabled() { return true }
     async loadURL(url: string) {
       this.urls.push(url)
       this.webContents.mainFrame.url = url
@@ -392,6 +401,8 @@ function applicationMenuItems(): MenuItemConstructorOptions[] {
 beforeEach(() => {
   vi.resetModules()
   vi.clearAllMocks()
+  zoomPreferences.factor = 1
+  zoomPreferences.write.mockReset().mockResolvedValue(undefined)
   harness.dialog.showMessageBox.mockReset()
   harness.dialog.showMessageBox.mockResolvedValue({ response: 1 })
   testAuth.login.mockReset()
@@ -482,6 +493,61 @@ describe('desktop main startup', () => {
     }
     expect(forwardWebRequest).not.toHaveBeenCalled()
     expect((await handler(new Request('dsh-app://unknown/update-dialog.html'))).status).toBe(404)
+  })
+
+  it.each(['darwin', 'win32'] as const)('restores and persists workspace zoom through native %s menus', async (platform) => {
+    vi.stubGlobal('process', { ...process, platform })
+    zoomPreferences.factor = 0.5
+    await readyForUpdate()
+    const window = harness.windows[0]!
+    await window.shown.promise
+    expect(window.options).toMatchObject({ webPreferences: { zoomFactor: 0.5 } })
+    expect(window.webContents.getZoomFactor()).toBe(0.5)
+    const template = harness.menu.mock.calls[0]![0]
+    const view = template.find(item => item.label === en.viewMenu)
+    const commands = platform === 'win32' ? template : view!.submenu as MenuItemConstructorOptions[]
+    const click = (accelerator: string) => {
+      commands.find(item => item.accelerator === accelerator)!.click!({} as Electron.MenuItem, undefined, {})
+    }
+    click('CommandOrControl+=')
+    await vi.waitFor(() => { expect(window.webContents.getZoomFactor()).toBe(0.67) })
+    click('CommandOrControl+0')
+    await vi.waitFor(() => { expect(window.webContents.getZoomFactor()).toBe(1) })
+    expect(zoomPreferences.write.mock.calls).toEqual([[0.67], [1]])
+    window.zoomFactor = 2
+    window.webContents.emit('did-finish-load')
+    expect(window.webContents.getZoomFactor()).toBe(1)
+    expect(zoomPreferences.write).toHaveBeenCalledTimes(2)
+    if (platform === 'win32') expect(window.setTitleBarOverlay).toHaveBeenLastCalledWith({ height: WINDOWS_TITLEBAR_HEIGHT })
+    const sender = window.webContents
+    const recording = harness.handlers.get(DESKTOP_IPC.shortcutsRecording)!
+    await recording({ sender, senderFrame: sender.mainFrame }, true)
+    click('CommandOrControl+Plus')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(zoomPreferences.write).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not apply a saved zoom to a destroyed window and waits for admitted writes on quit', async () => {
+    await readyForUpdate()
+    const window = harness.windows[0]!
+    await window.shown.promise
+    const save = Promise.withResolvers<undefined>()
+    zoomPreferences.write.mockReturnValueOnce(save.promise)
+    const command = harness.menu.mock.calls[0]![0].find(item => item.accelerator === 'CommandOrControl+Plus')!
+    command.click!({} as Electron.MenuItem, undefined, {})
+    await vi.waitFor(() => { expect(zoomPreferences.write).toHaveBeenCalledOnce() })
+    const applied = window.webContents.setZoomFactor.mock.calls.length
+    window.destroy()
+    harness.app.quit()
+    await vi.advanceTimersByTimeAsync(0)
+    const finished = vi.fn()
+    void harness.quitCompleted.promise.then(finished)
+    harness.hosts[0]!.exited.resolve()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(finished).not.toHaveBeenCalled()
+    save.resolve(undefined)
+    await harness.quitCompleted.promise
+    expect(window.webContents.setZoomFactor).toHaveBeenCalledTimes(applied)
   })
 
   it('installs hidden native DevTools shortcuts in the macOS application menu', async () => {
@@ -704,10 +770,12 @@ describe('desktop main startup', () => {
     } else if (platform === 'win32') {
       expect(window.options).toMatchObject({ titleBarStyle: 'hidden', titleBarOverlay: { height: WINDOWS_TITLEBAR_HEIGHT } })
       expect(window.options).not.toHaveProperty('vibrancy')
-      expect(harness.menu.mock.calls[0]![0]).toEqual([
+      expect(harness.menu.mock.calls[0]![0].slice(0, 2)).toEqual([
         { role: 'toggleDevTools', visible: false },
         { role: 'toggleDevTools', visible: false, accelerator: 'F12' },
       ])
+      expect(harness.menu.mock.calls[0]![0].slice(2).map(item => item.accelerator))
+        .toEqual(['CommandOrControl+Plus', 'CommandOrControl+-', 'CommandOrControl+0', 'CommandOrControl+='])
     } else {
       expect(window.options).not.toHaveProperty('titleBarStyle')
       expect(window.options).not.toHaveProperty('vibrancy')
@@ -845,7 +913,7 @@ describe('desktop main startup', () => {
     expect(() => handler(event, 'application', NaN, 34)).toThrow('invalid popup request')
     const application = handler(event, 'application', 48, 34)
     expect(harness.menu.buildFromTemplate.mock.lastCall![0].map(item => item.label ?? item.type)).toEqual([
-      '关于 DeepSeek Harness', 'separator', '检查更新…', '管理 dsh 命令…', 'separator', '退出',
+      '关于 DeepSeek Harness', 'separator', '检查更新…', '管理 dsh 命令…', 'separator', '视图', 'separator', '退出',
     ])
     expect(harness.popup.mock.lastCall![0]).toMatchObject({ window, x: 48, y: 34 })
     expect(harness.popup.mock.lastCall![0].callback).toBeTypeOf('function')
@@ -878,8 +946,8 @@ describe('desktop main startup', () => {
       .find(items => items.some(item => item.role === 'editMenu'))
     if (template === undefined) throw new Error('application menu missing')
     expect(template.map(describeItem)).toEqual(platform === 'darwin'
-      ? ['Desktop test', en.fileMenu, 'editMenu', 'windowMenu']
-      : ['Application', 'editMenu'])
+      ? ['Desktop test', en.fileMenu, 'editMenu', en.viewMenu, 'windowMenu']
+      : ['Application', 'editMenu', en.viewMenu])
     const application = template[0]!.submenu as MenuItemConstructorOptions[]
     expect(application.filter(item => item.visible !== false).map(describeItem)).toEqual(platform === 'darwin'
       ? ['about', 'separator', en.checkUpdatesMenu, en.cliCommandMenu, 'separator', 'hide', 'hideOthers', 'unhide', 'separator', 'quit']

@@ -20,6 +20,8 @@ export function installDesktopShortcuts(
   overlayInput: (window: BrowserWindow) => { readonly revision: number; readonly blocked: boolean },
 ): {
   fileMenu(labels: { fileMenu: string; closePage: string }): MenuItemConstructorOptions
+  /** @returns whether native menu actions may affect the focused, unblocked product window. */
+  canRunNativeCommand(): boolean
   /**
    * Send a native Edit action to the editor without matching user shortcuts.
    * @param keyCode - edit key.
@@ -222,6 +224,11 @@ export function installDesktopShortcuts(
   }
 
   return {
+    canRunNativeCommand() {
+      const window = getWindow()
+      return window !== undefined && !window.isDestroyed() && window.isFocused() && window.isEnabled()
+        && !recording && !overlayInput(window).blocked
+    },
     sendEditingKey(keyCode, modifiers) {
       const window = getWindow()
       if (window === undefined || window.isDestroyed() || overlayInput(window).blocked) return

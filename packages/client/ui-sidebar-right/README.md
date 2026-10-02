@@ -98,6 +98,8 @@ Two more seats extend what is already there: `sidebar.right.tab.guide` (chain) r
 
 `focusedTarget(element?)` resolves the current DOM pane and tab, including an embedding iframe; outside focus returns no page. `commandTarget(element?)` additionally allows an outside open to use the on-screen Session's active dock pane. Captures include the occurrence and navigation revision; `isTargetCurrent(target)` rejects changed Sessions, moved or reopened tabs, and intervening navigation. Focus and pointer activation remain separate from persisted layout selection.
 
+Fullscreen panes on macOS compensate their traffic-light inset and top space when [Desktop zoom](../../../apps/desktop/README.md#workspace-zoom) is below 100%; native window fullscreen removes that extra space.
+
 <a id="the-tab-domain"></a>
 ## The Tab domain
 
