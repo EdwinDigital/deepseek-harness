@@ -1,9 +1,11 @@
 /** Native onboarding reuses authenticated Web RPC and never reads credential values. */
 import { describe, expect, it, vi } from 'vitest'
 import { connectDesktopWelcome } from '../src/welcome-backend.ts'
+import { needsWelcome } from '../src/welcome-api.ts'
 
 function transport(preference?: string) {
   const keys = new Map<string, string>()
+  const authentication: { configured: unknown; loggedIn: boolean } = { configured: false, loggedIn: false }
   const namespaces = [
     { ns: 'llm-deepseek', value: { apiKeyEnv: 'CUSTOM_DEEPSEEK_KEY' } },
     { ns: 'llm-pi-ai', value: { profiles: { example: { apiKeyEnv: 'EXAMPLE_API_KEY' } } } },
@@ -17,7 +19,8 @@ function transport(preference?: string) {
       payload: { args: { ref: string; value: string; refs: string[] } }
     }
     let value: unknown
-    if (method === 'account/getState') value = { links: { usageUrl: 'http://localhost/usage', topUpUrl: 'http://localhost/top_up' }, status: 'signed-out', attempt: null }
+    if (method === 'account/getState') value = { links: { usageUrl: 'http://localhost/usage', topUpUrl: 'http://localhost/top_up' }, status: authentication.loggedIn ? 'credential-stored' : 'signed-out', attempt: null }
+    else if (method === 'llm/hasConfiguredAuth') value = authentication.configured
     else if (method === 'settings/describe') value = { namespaces }
     else if (method === 'llm/listConfigurableProviders') value = [{ settingsNs: 'llm-pi-ai', settingsPath: ['profiles', 'example'] }]
     else if (method === 'productAnalytics/enabled') value = true
@@ -26,7 +29,7 @@ function transport(preference?: string) {
     else value = Object.fromEntries(payload.args.refs.map(ref => [ref, { configured: keys.has(ref), writable: true }]))
     return Response.json({ type: 'server-response', rpcId, result: { ok: true, value } })
   })
-  return { send, keys, namespaces }
+  return { send, keys, namespaces, authentication }
 }
 
 const url = 'http://127.0.0.1:19387/?token=fixture'
@@ -39,7 +42,9 @@ describe('desktop welcome Web operations', () => {
     expect(await backend.analyticsEnabled()).toBe(true)
     expect(await backend.save('sk-example')).toEqual({ ok: true })
     expect(host.keys.get('CUSTOM_DEEPSEEK_KEY')).toBe('sk-example')
-    expect(await backend.read()).toEqual({ loggedIn: false, hasApiKey: true, writable: true, localePreference: null })
+    expect(await backend.read()).toEqual({
+      loggedIn: false, hasApiKey: true, hasProviderAuth: false, writable: true, localePreference: null,
+    })
     for (const [input, init] of host.send.mock.calls.slice(1)) {
       expect(input).toMatch(/^http:\/\/127\.0\.0\.1:19387\/api\//u)
       expect(init).toMatchObject({ credentials: 'include', redirect: 'error' })
@@ -54,6 +59,35 @@ describe('desktop welcome Web operations', () => {
     host.keys.clear()
     expect(await backend.read()).toMatchObject({ hasApiKey: false })
     expect(host.send.mock.calls.every(([, init]) => !(init?.body as string | undefined)?.includes('credentials/set'))).toBe(true)
+  })
+
+  it('accepts adapter-confirmed authentication and observes its removal on the next read', async () => {
+    const host = transport()
+    const backend = await connectDesktopWelcome(url, host.send)
+    host.authentication.configured = true
+    const configured = await backend.read()
+    expect(configured).toMatchObject({ loggedIn: false, hasApiKey: false, hasProviderAuth: true })
+    expect(needsWelcome(configured)).toBe(false)
+    host.authentication.configured = false
+    host.keys.set('WEBIQ_API_KEY', 'unrelated-search-key')
+    expect(needsWelcome(await backend.read())).toBe(true)
+  })
+
+  it.each(['account', 'api-key'])('does not inspect unrelated adapter auth when %s already permits entry', async (route) => {
+    const host = transport()
+    host.authentication.configured = 'must-not-be-read'
+    host.authentication.loggedIn = route === 'account'
+    if (route === 'api-key') host.keys.set('CUSTOM_DEEPSEEK_KEY', 'existing-key')
+    const backend = await connectDesktopWelcome(url, host.send)
+    expect(needsWelcome(await backend.read())).toBe(false)
+    expect(host.send.mock.calls.some(([input]) => input.endsWith('/llm/hasConfiguredAuth'))).toBe(false)
+  })
+
+  it.each([null, 'true', {}, 1])('rejects malformed adapter authentication metadata: %j', async (value) => {
+    const host = transport()
+    host.authentication.configured = value
+    const backend = await connectDesktopWelcome(url, host.send)
+    await expect(backend.read()).rejects.toThrow('invalid provider authentication metadata')
   })
 
   it('reads language without querying account or model providers', async () => {

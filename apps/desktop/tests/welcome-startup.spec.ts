@@ -32,6 +32,7 @@ const state = vi.hoisted(() => ({
   welcomeLocale: undefined as DesktopLocale | undefined,
   preference: 'zh',
   hasApiKey: false,
+  hasProviderAuth: false,
   handlers: new Map<string, (...args: unknown[]) => unknown>(),
   listeners: new Map<string, (...args: unknown[]) => void>(),
   contents: undefined as { mainFrame: { url: string } } | undefined,
@@ -116,7 +117,8 @@ vi.mock('../src/host-process.ts', () => ({
     stop = state.stopHost
     fetch() {
       return Promise.resolve(Response.json({
-        loggedIn: false, hasApiKey: state.hasApiKey, writable: true, localePreference: state.preference,
+        loggedIn: false, hasApiKey: state.hasApiKey, hasProviderAuth: state.hasProviderAuth,
+        writable: true, localePreference: state.preference,
       }))
     }
   },
@@ -127,7 +129,10 @@ vi.mock('../src/welcome-backend.ts', () => ({
     readLocalePreference: async () => state.preference,
     read: async () => {
       await state.beforeRead()
-      return { loggedIn: false, hasApiKey: state.hasApiKey, writable: true, localePreference: state.preference }
+      return {
+        loggedIn: false, hasApiKey: state.hasApiKey, hasProviderAuth: state.hasProviderAuth,
+        writable: true, localePreference: state.preference,
+      }
     },
     save: async () => ({ ok: true }),
     account: {
@@ -171,11 +176,39 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
+it('opens the workspace at cold start with provider authentication but no DeepSeek login or API key', async () => {
+  vi.resetModules()
+  vi.clearAllMocks()
+  vi.useFakeTimers()
+  state.hasApiKey = false
+  state.hasProviderAuth = true
+  vi.stubEnv('DSH_CLIENT_VERSION', '1.2.3')
+  state.operations = undefined
+  state.accountState.mockResolvedValue({ status: 'signed-out', attempt: null, links: { usageUrl: '', topUpUrl: '' } })
+  vi.stubEnv('DSH_DESKTOP_DEV_PROJECT_DIR', '/development-profile')
+  vi.stubEnv('DSH_DESKTOP_PRIMARY_RUNTIME_DIR', '/runtime/primary-runtime')
+  vi.stubEnv('DSH_DESKTOP_OPEN_DEVTOOLS', '0')
+  vi.stubEnv('DSH_DESKTOP_HOST_INSPECT_PORT', undefined)
+  vi.stubEnv('DSH_DESKTOP_MANDATORY_UPDATE_CONFIG', undefined)
+  vi.stubEnv('DSH_DESKTOP_UPDATE_JOURNAL_DIR', undefined)
+  await import('../src/main.ts')
+  await vi.waitFor(() => { expect(state.showWorkspace).toHaveBeenCalledOnce() })
+  expect({ welcomeOpened: state.beforeWelcome.mock.calls.length, workspaceOpened: state.showWorkspace.mock.calls.length })
+    .toMatchInlineSnapshot(`
+      {
+        "welcomeOpened": 0,
+        "workspaceOpened": 1,
+      }
+    `)
+  expect(state.operations).toBeUndefined()
+})
+
 it.each([false, true])('starts welcome onboarding without carrying update focus into login or skip (Windows update=%s)', async (updated) => {
   vi.resetModules()
   vi.clearAllMocks()
   state.preference = 'zh'
   state.hasApiKey = false
+  state.hasProviderAuth = false
   state.operations = undefined
   state.accountState.mockResolvedValue({ status: 'signed-out', attempt: null, links: { usageUrl: '', topUpUrl: '' } })
   if (updated) vi.stubGlobal('process', { ...process, platform: 'win32', argv: ['desktop', '--updated'] })
@@ -272,6 +305,13 @@ it.each([false, true])('starts welcome onboarding without carrying update focus 
   expect(state.beforeWelcome).toHaveBeenCalledTimes(welcomeCount)
   expect(await state.operations!.takeNotice()).toBeUndefined()
   state.hasApiKey = false
+  state.hasProviderAuth = true
+  state.accountListener!({ ...account, status: 'credential-stored', attempt: null })
+  state.accountListener!({ ...account, status: 'signed-out', attempt: null })
+  state.expiryListener!()
+  await vi.advanceTimersByTimeAsync(0)
+  expect(state.beforeWelcome).toHaveBeenCalledTimes(welcomeCount)
+  state.hasProviderAuth = false
   state.accountListener!({ ...account, status: 'credential-stored', attempt: null })
   state.accountListener!({ ...account, status: 'signed-out', attempt: null })
   state.expiryListener!()

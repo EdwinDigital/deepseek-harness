@@ -825,6 +825,13 @@ declare abstract class LlmAdapter {
    */
   providerInfo(provider: string): LlmProviderInfo;
   /**
+   * Inspect authentication configuration without refreshing tokens or sending provider requests.
+   * Implementations must not expose credentials or treat an unrelated stored credential as evidence.
+   * @param _provider - a route passed to `registerAdapter()` for this instance.
+   * @returns true when authentication is configured; false when missing or not inspected by this adapter.
+   */
+  hasConfiguredAuth(_provider: string): Promise<boolean>;
+  /**
    * Return the provider-owned retry policy captured with this route.
    * @param _provider - a route passed to `registerAdapter()` for this instance.
    * @returns a resolved policy, or `undefined` to use the normal defaults.
@@ -941,6 +948,14 @@ registerAdapter(providers: string[], adapter: LlmAdapter): AdapterRegistrationHa
  * @returns detached provider metadata in registration order.
  */
 @Remote listProviders(): LlmProviderInfo[]
+
+/**
+ * Check whether a registered adapter confirms authentication for an active provider.
+ * This reads configuration only, without token refresh or provider requests; false also covers
+ * adapters that do not implement authentication inspection. Credential read failures reject.
+ * @returns whether an active provider has confirmed authentication configuration.
+ */
+@Remote async hasConfiguredAuth(): Promise<boolean>
 
 /**
  * Declare provider routes an adapter plugin can activate through

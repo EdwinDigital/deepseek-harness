@@ -8,6 +8,7 @@ import { desktopAccountBackend, type DesktopAccountBackend } from './account-bac
 export interface WelcomeState {
   readonly loggedIn: boolean
   readonly hasApiKey: boolean
+  readonly hasProviderAuth: boolean
   readonly writable: boolean
   readonly localePreference: string | null
 }
@@ -19,7 +20,7 @@ export interface DesktopWelcomeBackend {
   readonly account: DesktopAccountBackend
   /** @param event - desktop-owned fields. @returns after local Host intake. */
   report(event: ProductEvent): Promise<void>
-  /** @returns Configured-key presence and the shared language preference, without credential values. */
+  /** @returns Account and provider-authentication facts plus the shared language preference, without credential values. */
   read(): Promise<WelcomeState>
   /** @returns The saved UI language without account or provider requests. */
   readLocalePreference(): Promise<string | null>
@@ -113,9 +114,18 @@ export async function connectDesktopWelcome(
       Object.assign(states, batch)
     }
     if (ref !== undefined && !record(states[ref])) throw new Error('desktop welcome: missing credential metadata')
+    const loggedIn = (await account.state()).status === 'credential-stored'
+    const hasApiKey = Object.values(states).some(value => record(value) && value.configured === true)
+    let hasProviderAuth = false
+    if (!loggedIn && !hasApiKey) {
+      const configured = await invoke({ namespace: 'llm', method: 'hasConfiguredAuth', args: {} })
+      if (typeof configured !== 'boolean') throw new Error('desktop welcome: invalid provider authentication metadata')
+      hasProviderAuth = configured
+    }
     return {
-      loggedIn: (await account.state()).status === 'credential-stored',
-      hasApiKey: Object.values(states).some(value => record(value) && value.configured === true),
+      loggedIn,
+      hasApiKey,
+      hasProviderAuth,
       writable: ref !== undefined && record(states[ref]) && states[ref].writable === true,
       localePreference: localePreference(namespaces),
     }

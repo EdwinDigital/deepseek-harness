@@ -56,7 +56,7 @@ for await (const chunk of ctx.llm.stream({
 }
 ```
 
-After a successful mount, `ctx.llm.listProviders()` reports the registered routes in registration order.
+After a successful mount, `ctx.llm.listProviders()` reports the registered routes in registration order. `ctx.llm.hasConfiguredAuth()` asks active adapters whether authentication is configured, without token refresh or provider requests. A positive result does not establish remote credential validity or model availability. Adapters that do not implement inspection return false; credential read failures reject.
 
 `GenerateOptions.messages` accepts durable `Message` values and request-only `RequestUserInput` values. Request-only inputs carry user-role content with no `id` or `source`; Session writes and Agent delivery still require durable messages. Callers keep auxiliary inputs unchanged until the stream settles. A caller that records its exact request, such as session-title generation, must use durable messages.
 

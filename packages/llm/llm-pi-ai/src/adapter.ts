@@ -273,6 +273,19 @@ export class PiAiAdapter extends LlmAdapter {
     return this.current().profiles.get(provider)?.retryPolicy
   }
 
+  override async hasConfiguredAuth(provider: string): Promise<boolean> {
+    const snapshot = this.current()
+    const profile = this.profileOf(snapshot, provider)
+    if (profile.apiKeyEnv !== undefined) {
+      try { return await this.config.resolveApiKey(provider, profile) !== undefined }
+      catch (error) {
+        if (error instanceof LlmError && error.code === 'MISSING_CREDENTIAL') return false
+        throw error
+      }
+    }
+    return await snapshot.models.checkAuth(provider) !== undefined
+  }
+
   override listModels(provider: string): Promise<readonly LlmModelInfo[]> {
     return Promise.resolve().then(() => {
       const snapshot = this.current()

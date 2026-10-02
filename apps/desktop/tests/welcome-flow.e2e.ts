@@ -12,6 +12,7 @@ import { DesktopProjectManager } from '../src/project-manager.ts'
 import { resolveDesktopPaths } from '../src/paths.ts'
 import { desktopClientMetadata } from '../src/client-metadata.ts'
 import { connectDesktopWelcome, type DesktopWelcomeBackend } from '../src/welcome-backend.ts'
+import { needsWelcome } from '../src/welcome-api.ts'
 import { DESKTOP_HOST_PROTOCOL_VERSION } from '../src/host-protocol.ts'
 import { prepareDevelopmentProject } from '../scripts/development-project.ts'
 
@@ -141,6 +142,11 @@ describe.skipIf(!existsSync(builtHost))('built Desktop welcome flow', () => {
         }
         backend = await connectDesktopWelcome(url, send, () => Promise.resolve(cookie))
       }
+      writeFileSync(join(home, '.credentials.yaml'), [
+        'version: 1', 'refs:', '  WEBIQ_API_KEY: unrelated-search-key', 'records:',
+        '  llm-pi-ai/github-copilot:', '    kind: grant', '    payload:', '      type: oauth',
+        '      access: expired-access', '      refresh: saved-github-token', '      expires: 1', '',
+      ].join('\n'), { mode: 0o600 })
       const status = async () => backend.read()
       const fingerprint = (): string => createHash('sha256')
         .update(readFileSync(join(home, '.credentials.yaml'))).digest('hex')
@@ -153,6 +159,30 @@ describe.skipIf(!existsSync(builtHost))('built Desktop welcome flow', () => {
       await restart()
       expect(await status()).toMatchObject({ hasApiKey: false, localePreference: 'zh' })
       expect(fingerprint()).toBe(before)
+      const welcome: Record<string, boolean> = { inactiveProvider: needsWelcome(await status()) }
+      await host!.stop()
+      const patchPath = join(paths.profile, 'cordis.patch.yml')
+      const originalPatch = readFileSync(patchPath, 'utf8')
+      writeFileSync(patchPath, originalPatch + '- id: llm-pi-ai\n  config:\n    providers:\n      github-copilot: {}\n')
+      await restart()
+      expect(await status()).toMatchObject({ loggedIn: false, hasApiKey: false, hasProviderAuth: true })
+      welcome.savedOAuth = needsWelcome(await status())
+      expect(fingerprint()).toBe(before)
+      await restart()
+      welcome.restartedOAuth = needsWelcome(await status())
+      expect(fingerprint()).toBe(before)
+      await host!.stop()
+      writeFileSync(patchPath, originalPatch)
+      await restart()
+      welcome.removedProvider = needsWelcome(await status())
+      expect(welcome).toMatchInlineSnapshot(`
+        {
+          "inactiveProvider": true,
+          "removedProvider": true,
+          "restartedOAuth": false,
+          "savedOAuth": false,
+        }
+      `)
       expect(await backend!.save('sk-local-onboarding-test')).toEqual({ ok: true })
       expect(await status()).toMatchObject({ hasApiKey: true, localePreference: 'zh' })
       await restart()
